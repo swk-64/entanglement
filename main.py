@@ -1,22 +1,6 @@
 import pygame
-import lib
+from lib import *
 from math import sin, cos, pi, atan
-
-
-# constants
-DISPLAY_RESOLUTION = (1280, 720)
-BLOCK_SIZE = 50
-RAYS_AMOUNT = 200
-MINIMAP_SCALE = 0.5
-MINIMAP_BLOCK_SIZE = BLOCK_SIZE * MINIMAP_SCALE
-
-SPAWN_POINT_COLOR = "red"
-WALL_COLOR = "white"
-FLOOR_COLOR = "grey"
-BACKGROUND_COLOR = "black"
-
-PLAYER_COLOR = "yellow"
-PLAYER_LOOK_LINE_LEN = BLOCK_SIZE * 4 * MINIMAP_SCALE
 
 
 pygame.init()
@@ -32,14 +16,19 @@ level_data = [i.rstrip() for i in file.readlines()]
 level = list()
 
 #player init
-player_1 = lib.Player("player_1", PLAYER_COLOR, 0)
+player_1 = Player("player_1", PLAYER_COLOR, 0)
+entity_texture = pygame.image.load("textures/test_sprite.jpg")
+block_texture = pygame.image.load("textures/block_test.jpg")
+entity = Entity(pygame.Vector2(3 * BLOCK_SIZE + BLOCK_SIZE // 2, 2 * BLOCK_SIZE + BLOCK_SIZE // 2), entity_texture)
 
 for y in range(len(level_data)):
     for x in range(len(level_data[y])):
         if level_data[y][x] == "@":
             player_1.pos = pygame.Vector2(y * BLOCK_SIZE + BLOCK_SIZE // 2, x * BLOCK_SIZE + BLOCK_SIZE // 2)
         if level_data[y][x] != "0" and level_data[y][x] != "@":
-            level.append(lib.Block(pygame.Vector2(x, y), level_data[y][x]))
+            level.append(Block(pygame.Vector2(x, y), level_data[y][x], block_texture))
+
+level.append(entity)
 
 while running:
     for event in pygame.event.get():
@@ -65,7 +54,7 @@ while running:
     screen.fill("black")
 
     # render image
-    lib.render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, level, RAYS_AMOUNT)
+    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, level, RAYS_AMOUNT)
 
     # draw minimap
     for y in range(len(level_data)):
@@ -88,8 +77,8 @@ while running:
     field_of_view_ind = pygame.Rect(player_1.pos.x * MINIMAP_SCALE - MINIMAP_BLOCK_SIZE * 1.5, player_1.pos.y * MINIMAP_SCALE - MINIMAP_BLOCK_SIZE * 1.5, MINIMAP_BLOCK_SIZE * 3, MINIMAP_BLOCK_SIZE * 3)
     pygame.draw.arc(screen, "green", field_of_view_ind, player_1.look_ang - player_1.fov / 2, player_1.look_ang + player_1.fov / 2)
 
-    pygame.draw.line(screen, "green", player_1.pos * MINIMAP_SCALE, lib.calculate_look_end_point(player_1.look_ang - player_1.fov / 2, MINIMAP_BLOCK_SIZE * 1.5, player_1.pos * MINIMAP_SCALE))
-    pygame.draw.line(screen, "green", player_1.pos * MINIMAP_SCALE, lib.calculate_look_end_point(player_1.look_ang + player_1.fov / 2, MINIMAP_BLOCK_SIZE * 1.5, player_1.pos * MINIMAP_SCALE))
+    pygame.draw.line(screen, "green", player_1.pos * MINIMAP_SCALE, minimap_fov_end_point(player_1.look_ang - player_1.fov / 2, MINIMAP_BLOCK_SIZE * 1.5, player_1.pos * MINIMAP_SCALE))
+    pygame.draw.line(screen, "green", player_1.pos * MINIMAP_SCALE, minimap_fov_end_point(player_1.look_ang + player_1.fov / 2, MINIMAP_BLOCK_SIZE * 1.5, player_1.pos * MINIMAP_SCALE))
 
     # draw player
     pygame.draw.circle(screen, player_1.color, player_1.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)

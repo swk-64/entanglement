@@ -1,14 +1,26 @@
 import pygame
 from math import sin, cos, tan, pi, sqrt
+from typing import Union
 
 
+# constants
+DISPLAY_RESOLUTION = (1280, 720)
 BLOCK_SIZE = 50
 RAYS_AMOUNT = 200
-DISPLAY_RESOLUTION = (1280, 720)
+MINIMAP_SCALE = 0.5
+MINIMAP_BLOCK_SIZE = BLOCK_SIZE * MINIMAP_SCALE
+
+SPAWN_POINT_COLOR = "red"
+WALL_COLOR = "white"
+FLOOR_COLOR = "grey"
+BACKGROUND_COLOR = "black"
+
+PLAYER_COLOR = "yellow"
+PLAYER_LOOK_LINE_LEN = BLOCK_SIZE * 4 * MINIMAP_SCALE
 
 
 class Player:
-    def __init__(self, name, color, look_ang, pos=pygame.Vector2(0, 0)):
+    def __init__(self, name: str, color: str, look_ang: float, pos=pygame.Vector2(0, 0)):
         self.name = name
         self.pos = pos
         self.color = color
@@ -16,60 +28,110 @@ class Player:
         self.look_ang = look_ang
         self.fov = pi / 2
 
+        self.collision = None
+
 
 class Block:
-    def __init__(self, pos, block_type):
+    def __init__(self, pos: pygame.Vector2, block_type: str, texture: pygame.Surface):
         self.pos = pos
         self.type = block_type
-        # (left, right, top, bottom)
-        self.borders = (pos.x * BLOCK_SIZE, pos.x * BLOCK_SIZE + BLOCK_SIZE, pos.y * BLOCK_SIZE, pos.y * BLOCK_SIZE + BLOCK_SIZE)
+        # (left-top, left-bottom, right-top, right-bottom)
+        # the elements near connected between each other
+        self.points = [(pos.x * BLOCK_SIZE, pos.y * BLOCK_SIZE), (pos.x * BLOCK_SIZE + BLOCK_SIZE, pos.y * BLOCK_SIZE),
+                       (pos.x * BLOCK_SIZE + BLOCK_SIZE, pos.y * BLOCK_SIZE + BLOCK_SIZE),
+                       (pos.x * BLOCK_SIZE, pos.y * BLOCK_SIZE + BLOCK_SIZE), (pos.x * BLOCK_SIZE, pos.y * BLOCK_SIZE)]
+        self.texture = texture
 
 
-def calculate_look_end_point(ang, length, pos):
+class Entity:
+    def __init__(self, pos: pygame.Vector2, texture: pygame.Surface):
+        self.pos = pos
+        self.texture = texture
+        self.half_size = 10
+        self.collision = None
+
+
+def minimap_fov_end_point(ang: float, length: float, pos: pygame.Vector2):
     return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
 
-def distance(point1, point2):
-    return sqrt((point1.x - point2.x) ** 2 + (point1.y - point2.y) ** 2)
+def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]):
+    return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
-def is_visible(look_ang, pos, point):
-    look_vector = pygame.Vector2(cos(look_ang), -sin(look_ang))
-    point_vector = pygame.Vector2(point.x - pos.x, point.y - pos.y)
-    zero_vector = pygame.Vector2(0, 0)
-    angle_cosine = (cos(look_ang) * (point.x - pos.x) + -sin(look_ang) * (point.y - pos.y)) / distance(zero_vector, look_vector) * distance(zero_vector, point_vector)
+def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
+    vec = pygame.Vector2(cos(look_ang), -sin(look_ang))
+    point_vec = pygame.Vector2(point.x - pos.x, point.y - pos.y)
+    zero_vec = pygame.Vector2(0, 0)
+    angle_cosine = (cos(look_ang) * (point.x - pos.x) + -sin(look_ang) * (point.y - pos.y)) / distance(zero_vec, vec) * distance(zero_vec, point_vec)
     if angle_cosine > 0:
         return True
     return False
 
-def cast_ray(ang, look_ang, start_point, objects):
+def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, objects: list, screen):
     min_distance = 65536.0
-    for cur_object in objects:
-        intersects = []
-        left = pygame.Vector2(cur_object.borders[0], tan(-ang) * cur_object.borders[0] + start_point.y + tan(ang) * start_point.x)
-        right = pygame.Vector2(cur_object.borders[1], tan(-ang) * cur_object.borders[1] + start_point.y + tan(ang) * start_point.x)
-        intersects.append(left)
-        intersects.append(right)
-        if tan(ang) != 0:
-            top = pygame.Vector2((cur_object.borders[2] - start_point.y - tan(ang) * start_point.x) / tan(-ang), cur_object.borders[2])
-            bot = pygame.Vector2((cur_object.borders[3] - start_point.y - tan(ang) * start_point.x) / tan(-ang), cur_object.borders[3])
-            intersects.append(top)
-            intersects.append(bot)
-        for inter in intersects:
-            if cur_object.borders[0] <= inter[0] <= cur_object.borders[1] and cur_object.borders[2] <= inter[1] <= cur_object.borders[3]:
+    filler = pygame.Surface((1, 1))
+    filler.fill("white")
+    pixels = filler
+    look_vec = pygame.Vector2(cos(ang) + start_point[0], -sin(ang) + start_point[1])
+    k1 = (look_vec.y - start_point.y) / (look_vec.x - start_point.x)
+    b1 = start_point.y - k1 * start_point.x
+    for obj in objects:
+        if type(obj) == Block:
+            for i in range(len(obj.points) - 1):
+                try:
+                    k2 = (obj.points[i + 1][1] - obj.points[i][1]) / (obj.points[i + 1][0] - obj.points[i][0])
+                    b2 = obj.points[i][1] - k2 * obj.points[i][0]
+                    y = obj.points[i][1]
+                    x = (b2 - b1) / (k1 - k2)
+
+                    # strange behavior if replace k2 and b2 by k1 and b1
+                    y = k2 * x + b2
+                except ZeroDivisionError:
+                    x = obj.points[i][0]
+                    y = k1 * x + b1
+                inter = pygame.Vector2(x, y)
+                if obj.points[0][0] <= inter.x <= obj.points[1][0] and obj.points[1][1] <= inter.y <= obj.points[2][1]:
+                    if is_visible(look_ang, start_point, inter):
+                        if min_distance > distance(inter, start_point):
+                            min_distance = distance(inter, start_point)
+                            units_per_pixel = BLOCK_SIZE / (obj.texture.get_width() - 1)
+                            pixel_row = round(distance(obj.points[i], inter) / units_per_pixel)
+                            arr = pygame.PixelArray(obj.texture)
+                            pixels = arr[pixel_row:pixel_row + 1, :].make_surface()
+
+        elif type(obj) == Entity:
+            vec = pygame.Vector2(cos(look_ang) + start_point[0], -sin(look_ang) + start_point[1])
+            k = (vec.y - start_point.y) / (vec.x - start_point.x)
+            try:
+                k2 = - 1 / k
+                b2 = obj.pos.y - k2 * obj.pos.x
+                x = (b2 - b1) / (k1 - k2)
+                y = k2 * x + b2
+            except ZeroDivisionError:
+                x = obj.pos.x
+                y = start_point.y
+
+            inter = pygame.Vector2(x, y)
+            if (obj.pos.x - inter[0]) ** 2 + (obj.pos.y - inter[1]) ** 2 < obj.half_size**2:
                 if is_visible(look_ang, start_point, inter):
                     if min_distance > distance(inter, start_point):
                         min_distance = distance(inter, start_point)
-    return min_distance
+                        shifted = pygame.Vector2(-cos(look_ang + pi / 2) * obj.half_size + obj.pos.x, sin(look_ang + pi / 2) * obj.half_size + obj.pos.y)
+                        units_per_pixel = obj.half_size * 2 / (obj.texture.get_width() - 1)
+                        pixel_row = round(distance(shifted, inter) / units_per_pixel)
+                        arr = pygame.PixelArray(obj.texture)
+                        pixels = arr[pixel_row:pixel_row + 1, :].make_surface()
 
-def render_image(screen, player_pos, look_ang, fov, objects, rays_amount):
+
+    return min_distance, pixels
+
+def render_image(screen: pygame.Surface, player_pos: pygame.Vector2, look_ang: float, fov: float, objects: list, rays_amount: int):
     ang_between_rays = fov / rays_amount
     ang = look_ang - fov / 2
 
     for i in range(rays_amount):
-        dist = cast_ray(ang, look_ang, player_pos, objects)
+        dist, pixels = cast_ray(ang, look_ang, player_pos, objects, screen)
         height = BLOCK_SIZE / dist * 500
-        if height > DISPLAY_RESOLUTION[1]:
-            height = DISPLAY_RESOLUTION[1]
         width = DISPLAY_RESOLUTION[0] / rays_amount
-        line = pygame.Rect(i * width, (DISPLAY_RESOLUTION[1] - height) / 2, width, height)
-        pygame.draw.rect(screen, "white", line)
+        line = pygame.transform.scale(pixels, (width, height))
+        screen.blit(line, (i * width, (DISPLAY_RESOLUTION[1] - height) / 2))
         ang += ang_between_rays
