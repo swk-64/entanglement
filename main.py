@@ -109,6 +109,9 @@ while running:
 
     if velocity != pygame.Vector2(0, 0):
         velocity = velocity.normalize() * dt * PLAYER_SPEED
+
+    if keys[pygame.K_LSHIFT]:
+        velocity *= PLAYER_RUN_SPEED_MODIFIER
     player_1.vel = velocity
 
     update_collisions(update_collision_objs, level_objs)

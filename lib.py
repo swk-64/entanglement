@@ -8,7 +8,6 @@ DISPLAY_RESOLUTION = (1280, 720)
 BLOCK_SIZE = 50
 RAYS_AMOUNT = 200
 MINIMAP_SCALE = 0.5
-PLAYER_SPEED = 70
 MINIMAP_BLOCK_SIZE = BLOCK_SIZE * MINIMAP_SCALE
 MIN_RENDER_DISTANCE = 15
 ENTITY_SIZE = 50
@@ -23,6 +22,8 @@ BACKGROUND_COLOR = "black"
 PLAYER_COLOR = "yellow"
 PLAYER_LOOK_LINE_LEN = BLOCK_SIZE * 4 * MINIMAP_SCALE
 PLAYER_COLLISION_SIZE = 10
+PLAYER_SPEED = 70
+PLAYER_RUN_SPEED_MODIFIER = 2
 
 
 class Player:
@@ -52,12 +53,10 @@ class Wall:
         top_right = (pos.x + BLOCK_SIZE / 2, pos.y - BLOCK_SIZE / 2)
         bottom_right = (pos.x + BLOCK_SIZE / 2, pos.y + BLOCK_SIZE / 2)
         bottom_left = (pos.x - BLOCK_SIZE / 2, pos.y + BLOCK_SIZE / 2)
-        connections = set()
 
         # collision areas
         def top(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2:
-                # top
                 if self.pos.y + BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     if obj.vel.y < 0:
                         obj.vel += pygame.Vector2(0, -obj.vel.y)
@@ -68,7 +67,6 @@ class Wall:
                         obj.vel += pygame.Vector2(0, -obj.vel.y)
         def left(obj: Player):
             if self.pos.y - BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2:
-                # left
                 if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE <= obj.pos.x <= self.pos.x - BLOCK_SIZE / 2:
                     if obj.vel.x > 0:
                         obj.vel += pygame.Vector2(-obj.vel.x, 0)
@@ -79,7 +77,6 @@ class Wall:
                         obj.vel += pygame.Vector2(-obj.vel.x, 0)
         def topleft(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.x < self.pos.x - BLOCK_SIZE / 2:
-                # top-left
                 if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     vec = pygame.Vector2(1, -1)
                     if vec.dot(obj.vel) > 0:
@@ -96,7 +93,6 @@ class Wall:
                         obj.vel -= vec
         def topright(obj: Player):
             if self.pos.x + BLOCK_SIZE / 2 < obj.pos.x < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
-                # top-right
                 if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     vec = pygame.Vector2(-1, -1)
                     if vec.dot(obj.vel) > 0:
