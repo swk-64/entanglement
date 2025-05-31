@@ -1,6 +1,6 @@
 import pygame
 from lib import *
-from math import sin, cos, pi, atan
+from math import sin, cos, pi
 from pygame import gfxdraw
 
 
@@ -41,8 +41,8 @@ player_1 = Player("player_1", PLAYER_COLOR, 0)
 
 #process level data
 level_objs = list()
-visible_objs = list()
-collidable_objs = list()
+walls = list()
+entities = list()
 update_collision_objs = list()
 
 for y in range(len(level_data)):
@@ -56,14 +56,34 @@ for y in range(len(level_data)):
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
             case "#":
-                block = Wall(pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2), '#', block_texture)
-                visible_objs.append(block)
-                collidable_objs.append(block)
+                left = True
+                top = True
+                right = True
+                bottom = True
+
+                if x != 0:
+                    if level_data[y][x - 1] == "#":
+                        left = False
+                if y != 0:
+                    if level_data[y - 1][x] == "#":
+                        top = False
+                if x != len(level_data[y]) - 1:
+                    if level_data[y][x + 1] == "#":
+                        right = False
+                if y != len(level_data) - 1:
+                    if level_data[y + 1][x] == "#":
+                        bottom = False
+
+                neighbours = (left, top, right, bottom)
+
+                block = Wall(pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2), '#', neighbours, block_texture)
+
+                walls.append(block)
                 level_objs[y].append(block)
             case "!":
                 block = EntitySpawnBlock()
                 entity = Entity(pygame.Vector2(y * BLOCK_SIZE + BLOCK_SIZE // 2, x * BLOCK_SIZE + BLOCK_SIZE // 2), entity_texture)
-                visible_objs.append(entity)
+                entities.append(entity)
                 level_objs[y].append(block)
             case _:
                 block = FloorBlock()
@@ -83,9 +103,9 @@ while running:
     if keys[pygame.K_s]:
         velocity += pygame.Vector2(-cos(player_1.look_ang), sin(player_1.look_ang))
     if keys[pygame.K_a]:
-        velocity += pygame.Vector2(sin(player_1.look_ang), cos(player_1.look_ang))
-    if keys[pygame.K_d]:
         velocity += pygame.Vector2(-sin(player_1.look_ang), -cos(player_1.look_ang))
+    if keys[pygame.K_d]:
+        velocity += pygame.Vector2(sin(player_1.look_ang), cos(player_1.look_ang))
 
     if velocity != pygame.Vector2(0, 0):
         velocity = velocity.normalize() * dt * PLAYER_SPEED
@@ -96,14 +116,14 @@ while running:
     player_1.move()
 
     # mouse
-    player_1.look_ang += (pygame.mouse.get_pos()[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    player_1.look_ang -= (pygame.mouse.get_pos()[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
     pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
 
     # update screen
     screen.fill("black")
 
     # render image
-    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, visible_objs, RAYS_AMOUNT)
+    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, walls, entities, RAYS_AMOUNT)
 
     # draw minimap
     for y in range(len(level_data)):
