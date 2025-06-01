@@ -64,15 +64,23 @@ for y in range(len(level_data)):
                 if x != 0:
                     if level_data[y][x - 1] == "#":
                         left = False
+                else:
+                    left = False
                 if y != 0:
                     if level_data[y - 1][x] == "#":
                         top = False
+                else:
+                    top = False
                 if x != len(level_data[y]) - 1:
                     if level_data[y][x + 1] == "#":
                         right = False
+                else:
+                    right = False
                 if y != len(level_data) - 1:
                     if level_data[y + 1][x] == "#":
                         bottom = False
+                else:
+                    bottom = False
 
                 neighbours = (left, top, right, bottom)
 

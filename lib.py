@@ -9,7 +9,7 @@ BLOCK_SIZE = 50
 RAYS_AMOUNT = 200
 MINIMAP_SCALE = 0.5
 MINIMAP_BLOCK_SIZE = BLOCK_SIZE * MINIMAP_SCALE
-MIN_RENDER_DISTANCE = 15
+MIN_RENDER_DISTANCE = 10
 ENTITY_SIZE = 50
 ENTITY_HALF_SIZE = ENTITY_SIZE / 2
 
@@ -21,7 +21,7 @@ BACKGROUND_COLOR = "black"
 
 PLAYER_COLOR = "yellow"
 PLAYER_LOOK_LINE_LEN = BLOCK_SIZE * 4 * MINIMAP_SCALE
-PLAYER_COLLISION_SIZE = 10
+PLAYER_COLLISION_SIZE = 15
 PLAYER_SPEED = 70
 PLAYER_RUN_SPEED_MODIFIER = 2
 
@@ -55,12 +55,12 @@ class Wall:
         bottom_left = (pos.x - BLOCK_SIZE / 2, pos.y + BLOCK_SIZE / 2)
 
         # collision areas
-        def top(obj: Player):
+        def bottom(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2:
                 if self.pos.y + BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     if obj.vel.y < 0:
                         obj.vel += pygame.Vector2(0, -obj.vel.y)
-        def bottom(obj: Player):
+        def top(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2:
                 if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE <= obj.pos.y <= self.pos.y - BLOCK_SIZE / 2:
                     if obj.vel.y > 0:
@@ -75,7 +75,7 @@ class Wall:
                 if self.pos.x + BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     if obj.vel.x < 0:
                         obj.vel += pygame.Vector2(-obj.vel.x, 0)
-        def topleft(obj: Player):
+        def bottomleft(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.x < self.pos.x - BLOCK_SIZE / 2:
                 if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     vec = pygame.Vector2(1, -1)
@@ -83,7 +83,7 @@ class Wall:
                         vec.scale_to_length(
                             vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
                         obj.vel -= vec
-        def bottomleft(obj: Player):
+        def topleft(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.x < self.pos.x - BLOCK_SIZE / 2:
                 if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.y < self.pos.y - BLOCK_SIZE / 2:
                     vec = pygame.Vector2(1, 1)
@@ -91,7 +91,7 @@ class Wall:
                         vec.scale_to_length(
                             vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
                         obj.vel -= vec
-        def topright(obj: Player):
+        def bottomright(obj: Player):
             if self.pos.x + BLOCK_SIZE / 2 < obj.pos.x < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                 if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                     vec = pygame.Vector2(-1, -1)
@@ -99,7 +99,7 @@ class Wall:
                         vec.scale_to_length(
                             vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
                         obj.vel -= vec
-        def bottomright(obj: Player):
+        def topright(obj: Player):
             if self.pos.x + BLOCK_SIZE / 2 < obj.pos.x < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
                 if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.y < self.pos.y - BLOCK_SIZE / 2:
                     vec = pygame.Vector2(-1, 1)
@@ -194,11 +194,9 @@ def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2,
     return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
 def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
-    vec = pygame.Vector2(cos(look_ang), -sin(look_ang))
+    player_vec = pygame.Vector2(cos(look_ang), -sin(look_ang))
     point_vec = pygame.Vector2(point.x - pos.x, point.y - pos.y)
-    zero_vec = pygame.Vector2(0, 0)
-    angle_cosine = (cos(look_ang) * (point.x - pos.x) + -sin(look_ang) * (point.y - pos.y)) / distance(zero_vec, vec) * distance(zero_vec, point_vec)
-    if angle_cosine > 0:
+    if player_vec.dot(point_vec) > 0:
         return True
     return False
 
@@ -223,7 +221,7 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
             if obj.pos.x - BLOCK_SIZE / 2 <= inter.x <= obj.pos.x + BLOCK_SIZE / 2 and obj.pos.y - BLOCK_SIZE / 2 <= inter.y <= obj.pos.y + BLOCK_SIZE / 2:
                 if is_visible(look_ang, start_point, inter):
                     dist = distance(inter, start_point)
-                    if min_distance > dist:
+                    if min_distance > dist > MIN_RENDER_DISTANCE:
                         min_distance = dist
                         units_per_pixel = BLOCK_SIZE / (obj.texture.get_width() - 1)
                         pixel_row = round(distance(side[0], inter) / units_per_pixel)
