@@ -27,16 +27,10 @@ level symbols designations:
 '''
 
 #load textures
-entity_texture = pygame.image.load("textures/test_sprite.jpg")
 block_texture = pygame.image.load("textures/block_test.jpg")
 
 # read level data
 level_data = [i.rstrip() for i in file.readlines()]
-
-
-#player init
-player_1 = Player("player_1", PLAYER_COLOR, 0)
-
 
 
 #process level data
@@ -48,11 +42,11 @@ update_collision_objs = list()
 for y in range(len(level_data)):
     level_objs.append([])
     for x in range(len(level_data[y])):
+        pos = pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2)
         match level_data[y][x]:
             case "@":
                 block = SpawnBlock()
-                player_1 = Player("player_1", PLAYER_COLOR, 0)
-                player_1.pos = pygame.Vector2(y * BLOCK_SIZE + BLOCK_SIZE // 2, x * BLOCK_SIZE + BLOCK_SIZE // 2)
+                player_1 = Player("player_1", 0, pos)
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
             case "#":
@@ -84,13 +78,13 @@ for y in range(len(level_data)):
 
                 neighbours = (left, top, right, bottom)
 
-                block = Wall(pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2), '#', neighbours, block_texture)
+                block = Wall(pos, '#', neighbours, block_texture)
 
                 walls.append(block)
                 level_objs[y].append(block)
             case "!":
-                block = EntitySpawnBlock()
-                entity = Entity(pygame.Vector2(y * BLOCK_SIZE + BLOCK_SIZE // 2, x * BLOCK_SIZE + BLOCK_SIZE // 2), entity_texture)
+                block = EntitySpawnBlock(pos, 1)
+                entity = block.spawn_entity()
                 entities.append(entity)
                 level_objs[y].append(block)
             case _:
@@ -163,7 +157,7 @@ while running:
     gfxdraw.pie(screen, int(player_1.pos.x * MINIMAP_SCALE), int(player_1.pos.y * MINIMAP_SCALE), int(MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
 
     # draw player
-    pygame.draw.circle(screen, player_1.color, player_1.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
+    pygame.draw.circle(screen, "yellow", player_1.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
 
     # show on display
     pygame.display.flip()

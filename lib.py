@@ -27,10 +27,9 @@ PLAYER_RUN_SPEED_MODIFIER = 2
 
 
 class Player:
-    def __init__(self, name: str, color: str, look_ang: float, pos=pygame.Vector2(0, 0)):
+    def __init__(self, name: str, look_ang: float, pos: pygame.Vector2):
         self.name = name
         self.pos = pos
-        self.color = color
         self.look_ang = look_ang
         self.fov = pi / 2
         self.vel = pygame.Vector2(0, 0)
@@ -143,11 +142,34 @@ class Wall:
         for collision in self.collisions:
             collision(obj)
 
-class Entity:
-    def __init__(self, pos: pygame.Vector2, texture: pygame.Surface):
+
+class EntityBasicClass:
+    def __init__(self, pos: pygame.Vector2, frames_number:int):
         self.pos = pos
-        self.texture = texture
-        self.collision = None
+        self.frames = list()
+        self.frames_number = frames_number
+        self.curr_frame_number = 0
+        self.animation_speed = 100
+        self.last_update = pygame.time.get_ticks()
+    def update(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_update > self.animation_speed:
+            self.last_update = now
+            if self.curr_frame_number == self.frames_number - 1:
+                self.curr_frame_number = 0
+            else:
+                self.curr_frame_number += 1
+    def get_current_texture(self):
+        self.update()
+        return self.frames[self.curr_frame_number]
+
+
+class PelmenKing(EntityBasicClass):
+    def __init__(self, pos: pygame.Vector2):
+        EntityBasicClass.__init__(self, pos, 12)
+        for i in range(12):
+            image = pygame.image.load("textures/pelmen_king/" + str(i) + ".png")
+            self.frames.append(image.convert_alpha())
 
 
 class FloorBlock:
@@ -157,14 +179,23 @@ class FloorBlock:
         pass
 
 
-class SpawnBlock:
-    def __init__(self):
+class EntitySpawnBlock:
+    def __init__(self, pos: pygame.Vector2, entity_type: int):
+        self.pos = pos
+        self.entity_type = entity_type
         pass
     def update_collision(self, obj):
         pass
+    def spawn_entity(self):
+        if self.entity_type == 1:
+            return PelmenKing(self.pos)
+        else:
+            raise KeyError
 
 
-class EntitySpawnBlock:
+
+
+class SpawnBlock:
     def __init__(self):
         pass
     def update_collision(self, obj):
@@ -246,17 +277,19 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
                 if is_visible(look_ang, start_point, inter):
                     dist = distance(inter, start_point)
                     if min_distance > dist > MIN_RENDER_DISTANCE:
+                        texture = obj.get_current_texture()
                         shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
-                        units_per_pixel = ENTITY_SIZE / (obj.texture.get_width() - 1)
+                        units_per_pixel = ENTITY_SIZE / (texture.get_width() - 1)
                         pixel_row = round(distance(shifted, inter) / units_per_pixel)
-                        arr = pygame.PixelArray(obj.texture)
+                        arr = pygame.PixelArray(texture)
                         line = arr[pixel_row:pixel_row + 1, :].make_surface()
                         layers.append((dist, line))
 
     layers[1:].sort(key=lambda l: l[0])
     return layers
 
-def render_image(screen: pygame.Surface, player_pos: pygame.Vector2, look_ang: float, fov: float, walls: list, entities: list, rays_amount: int, mode=0):
+def render_image(screen: pygame.Surface, player_pos: pygame.Vector2, look_ang: float, fov: float, walls: list,
+                 entities: list, rays_amount: int, mode=0):
     ang_between_rays = fov / rays_amount
     ang = look_ang + fov / 2
 
@@ -266,10 +299,10 @@ def render_image(screen: pygame.Surface, player_pos: pygame.Vector2, look_ang: f
         if mode == 0:
             pixels = pygame.Surface((ceil(width), DISPLAY_RESOLUTION[1]))
         else:
-            height = BLOCK_SIZE / layers[0][0] * 800
+            height = BLOCK_SIZE / layers[0][0] * 1000
             pixels = pygame.Surface((ceil(width), height))
         for j in layers:
-            layer_height = BLOCK_SIZE / j[0] * 800
+            layer_height = BLOCK_SIZE / j[0] * 1000
             layer_line = pygame.transform.scale(j[1], (ceil(width), layer_height))
             pixels.blit(layer_line, (0, (DISPLAY_RESOLUTION[1] - layer_height) / 2))
 
