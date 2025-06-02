@@ -27,7 +27,7 @@ level symbols designations:
 '''
 
 #load textures
-block_texture = pygame.image.load("textures/concrete_wall_1.jpg")
+block_texture = pygame.image.load("textures/stone_wall_2.jpg")
 block_texture.convert()
 
 # read level data
@@ -49,7 +49,7 @@ for y in range(len(level_data)):
             case "@":
                 block = SpawnBlock()
                 player_1 = Player("player_1", 0, pos)
-                player_1.inventory.append(Weapon(player_1))
+                player_1.weapons.append(LaserGun(player_1))
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
             case "#":
@@ -126,7 +126,7 @@ while running:
 
     buttons = pygame.mouse.get_pressed()
     if buttons[0]:
-        proj = player_1.curr_weapon().use()
+        proj = player_1.curr_weapon().use(dt)
         if proj:
             projectiles.append(proj)
 
@@ -137,7 +137,7 @@ while running:
     projectiles = update_projectiles(projectiles, dt)
 
     # render image
-    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, walls, entities, projectiles, RAYS_AMOUNT)
+    render_image(screen, player_1, walls, entities, projectiles, RAYS_AMOUNT)
 
     # draw minimap
     for y in range(len(level_data)):
