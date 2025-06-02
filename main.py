@@ -27,7 +27,8 @@ level symbols designations:
 '''
 
 #load textures
-block_texture = pygame.image.load("textures/block_test.jpg")
+block_texture = pygame.image.load("textures/concrete_wall_1.jpg")
+block_texture.convert()
 
 # read level data
 level_data = [i.rstrip() for i in file.readlines()]
@@ -38,6 +39,7 @@ level_objs = list()
 walls = list()
 entities = list()
 update_collision_objs = list()
+projectiles = list()
 
 for y in range(len(level_data)):
     level_objs.append([])
@@ -47,6 +49,7 @@ for y in range(len(level_data)):
             case "@":
                 block = SpawnBlock()
                 player_1 = Player("player_1", 0, pos)
+                player_1.inventory.append(Weapon(player_1))
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
             case "#":
@@ -82,6 +85,7 @@ for y in range(len(level_data)):
 
                 walls.append(block)
                 level_objs[y].append(block)
+
             case "!":
                 block = EntitySpawnBlock(pos, 1)
                 entity = block.spawn_entity()
@@ -120,15 +124,21 @@ while running:
 
     player_1.move()
 
+    state = pygame.mouse.get_pressed()
+    if state[0]:
+        print('hello!')
+        proj = player_1.curr_weapon().use()
+        if proj:
+            projectiles.append(proj)
+
     # mouse
     player_1.look_ang -= (pygame.mouse.get_pos()[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
     pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
 
-    # update screen
-    screen.fill("black")
+    projectiles = update_projectiles(projectiles, dt)
 
     # render image
-    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, walls, entities, RAYS_AMOUNT)
+    render_image(screen, player_1.pos, player_1.look_ang, player_1.fov, walls, entities, projectiles, RAYS_AMOUNT)
 
     # draw minimap
     for y in range(len(level_data)):

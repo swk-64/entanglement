@@ -3,6 +3,9 @@ from math import sin, cos, pi, sqrt, ceil
 from typing import Union
 
 
+# It is recommended to use 32x48 pixels texture sizes
+
+
 # constants
 DISPLAY_RESOLUTION = (1280, 720)
 BLOCK_SIZE = 50
@@ -33,6 +36,9 @@ class Player:
         self.look_ang = look_ang
         self.fov = pi / 2
         self.vel = pygame.Vector2(0, 0)
+        self.inventory = list()
+        self.curr_inv_slot = 0
+        self.inventory_size = 1
 
     def cur_block(self):
         return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
@@ -40,6 +46,41 @@ class Player:
     def move(self):
         self.pos += self.vel
         self.vel = pygame.Vector2(0, 0)
+
+    def curr_weapon(self):
+        return self.inventory[self.curr_inv_slot]
+
+class Weapon:
+    def __init__(self, user: Player):
+        self.ammo = 100
+        self.last_shot = pygame.time.get_ticks()
+        self.use_speed = 100
+        self.user = user
+    def use(self):
+        now = pygame.time.get_ticks()
+        if now - self.last_shot > self.use_speed:
+            self.last_shot = now
+            return Projectile(self.user.pos, self.user.look_ang, now)
+        return None
+
+
+class Projectile:
+    def __init__(self, pos: pygame.Vector2, ang: float, time):
+        self.time = time
+        self.decay_time = 1000
+        self.speed = 100
+        self.color = "red"
+        self.length = 20
+        self.direction = pygame.Vector2(cos(ang), -sin(ang))
+        self.pos = pygame.Vector2(pos.x + cos(ang), pos.y - sin(ang))
+    def update(self, dt: float):
+        now = pygame.time.get_ticks()
+        if now - self.time < self.decay_time:
+            self.time = now
+            self.pos += self.direction * dt * self.speed
+            return self
+        return None
+
 
 
 class Wall:
@@ -202,6 +243,14 @@ class SpawnBlock:
         pass
 
 
+def update_projectiles(objs:list, dt):
+    projectiles = list()
+    for obj in objs:
+        projectile = obj.update(dt)
+        if projectile:
+            projectiles.append(projectile)
+    return projectiles
+
 def update_collisions(objs: list, level: list):
     for obj in objs:
         block = obj.cur_block()
@@ -231,78 +280,148 @@ def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
         return True
     return False
 
-def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: list, entities: list):
+def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: list, entities: list, projectiles: list):
     min_distance = 1000.0
-    layers = [(min_distance, pygame.Surface((1, 1)))]
-    look_vec = pygame.Vector2(cos(ang) + start_point[0], -sin(ang) + start_point[1])
-    k1 = (look_vec.y - start_point.y) / (look_vec.x - start_point.x)
-    b1 = start_point.y - k1 * start_point.x
+    layers = [(min_distance, pygame.Surface((1, 1)), 1000)]
+    if cos(ang) == 0:
+        k = None
+    else:
+        k = -sin(ang) / cos(ang)
+        b = start_point.y - k * start_point.x
+
+
+    # process walls
     for obj in walls:
         for side in obj.sides:
-            try:
-                k2 = (side[1][1] - side[0][1]) / (side[1][0] - side[0][0])
-                b2 = side[0][1] - k2 * side[0][0]
-                x = (b2 - b1) / (k1 - k2)
-                # strange behavior if replace k2 and b2 by k1 and b1
-                y = k2 * x + b2
-            except ZeroDivisionError:
-                x = side[0][0]
-                y = k1 * x + b1
+            if side[0][0] == side[1][0]:
+                if k is None:
+                    continue
+                else:
+                    x = side[0][0]
+                    y = k * x + b
+            else:
+                if k == 0:
+                    continue
+                elif k is None:
+                    y = side[0][1]
+                    x = start_point.x
+                else:
+                    y = side[0][1]
+                    x = (y - b) / k
             inter = pygame.Vector2(x, y)
             if obj.pos.x - BLOCK_SIZE / 2 <= inter.x <= obj.pos.x + BLOCK_SIZE / 2 and obj.pos.y - BLOCK_SIZE / 2 <= inter.y <= obj.pos.y + BLOCK_SIZE / 2:
                 if is_visible(look_ang, start_point, inter):
                     dist = distance(inter, start_point)
                     if min_distance > dist > MIN_RENDER_DISTANCE:
                         min_distance = dist
-                        units_per_pixel = BLOCK_SIZE / (obj.texture.get_width() - 1)
-                        pixel_row = round(distance(side[0], inter) / units_per_pixel)
+                        units_per_pixel = BLOCK_SIZE / (obj.texture.get_width())
+                        pixel_row = int(distance(side[0], inter) / units_per_pixel)
                         arr = pygame.PixelArray(obj.texture)
                         line = arr[pixel_row:pixel_row + 1, :].make_surface()
-                        layers[0] = (dist, line)
+                        layers[0] = (dist, line, 1000)
 
+    # process entities
     for obj in entities:
-            vec = pygame.Vector2(cos(look_ang) + start_point[0], -sin(look_ang) + start_point[1])
-            k = (vec.y - start_point.y) / (vec.x - start_point.x)
-            try:
-                k2 = - 1 / k
-                b2 = obj.pos.y - k2 * obj.pos.x
-                x = (b2 - b1) / (k1 - k2)
-                y = k2 * x + b2
-            except ZeroDivisionError:
+        if cos(look_ang) == 0:
+            # k1 = 0
+            if k == 0:
+                continue
+            elif k is None:
+                y = obj.pos.y
+                x = start_point.x
+            else:
+                y = obj.pos.y
+                x = (y - b) / k
+        elif sin(look_ang) == 0:
+            # k1 = None
+            if k is None:
+                continue
+            else:
                 x = obj.pos.x
-                y = start_point.y
+                y = k * x + b
+        else:
+            k1 = cos(look_ang) / sin(look_ang)
+            b1 = obj.pos.y - k1 * obj.pos.x
+            if k is None:
+                x = start_point.x
+                y = x * k1 + b1
+            else:
+                x = (b1 - b) / (k - k1)
+                y = k1 * x + b1
 
+        inter = pygame.Vector2(x, y)
+        if (obj.pos.x - inter[0]) ** 2 + (obj.pos.y - inter[1]) ** 2 < ENTITY_HALF_SIZE**2:
+            if is_visible(look_ang, start_point, inter):
+                dist = distance(inter, start_point)
+                if min_distance > dist > MIN_RENDER_DISTANCE:
+                    texture = obj.get_current_texture()
+                    shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
+                    units_per_pixel = ENTITY_SIZE / texture.get_width()
+                    pixel_row = int(distance(shifted, inter) / units_per_pixel)
+                    arr = pygame.PixelArray(texture)
+                    line = arr[pixel_row:pixel_row + 1, :].make_surface()
+                    layers.append((dist, line, 1000))
+
+        # process projectiles
+        for obj in projectiles:
+            if obj.direction.x == 0:
+                if k is None:
+                    continue
+                else:
+                    x = obj.pos.x
+                    y = k * x + b
+            elif obj.direction.y == 0:
+                if k == 0:
+                    continue
+                elif k is None:
+                    y = obj.pos.y
+                    x = start_point.x
+                else:
+                    y = obj.pos.y
+                    x = (y - b) / k
+            else:
+                k1 = obj.direction.y / obj.direction.x
+                b1 = obj.pos.y - k1 * obj.pos.x
+                if k is None:
+                    x = start_point.x
+                    y = x * k1 + b1
+                else:
+                    x = (b1 - b) / (k - k1)
+                    y = k1 * x + b1
             inter = pygame.Vector2(x, y)
-            if (obj.pos.x - inter[0]) ** 2 + (obj.pos.y - inter[1]) ** 2 < ENTITY_HALF_SIZE**2:
+            middle_pos = obj.pos + obj.direction * obj.length / 2
+            if middle_pos.x - abs(obj.direction.x * obj.length / 2) <= inter.x <= middle_pos.x + abs(obj.direction.x * obj.length / 2) and middle_pos.y - abs(obj.direction.y * obj.length / 2) <= middle_pos.y + abs(obj.direction.y * obj.length / 2):
                 if is_visible(look_ang, start_point, inter):
                     dist = distance(inter, start_point)
                     if min_distance > dist > MIN_RENDER_DISTANCE:
-                        texture = obj.get_current_texture()
-                        shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
-                        units_per_pixel = ENTITY_SIZE / (texture.get_width() - 1)
-                        pixel_row = round(distance(shifted, inter) / units_per_pixel)
-                        arr = pygame.PixelArray(texture)
-                        line = arr[pixel_row:pixel_row + 1, :].make_surface()
-                        layers.append((dist, line))
+                        color = pygame.Surface((1, 1))
+                        color.fill(obj.color)
+                        layers.append((dist, color, 50))
+
 
     layers[1:].sort(key=lambda l: l[0])
     return layers
 
 def render_image(screen: pygame.Surface, player_pos: pygame.Vector2, look_ang: float, fov: float, walls: list,
-                 entities: list, rays_amount: int, mode=0):
+                 entities: list, projectiles: list, rays_amount: int, mode=0):
     ang_between_rays = fov / rays_amount
     ang = look_ang + fov / 2
 
     for i in range(rays_amount):
-        layers = cast_ray(ang, look_ang, player_pos, walls, entities)
+        layers = cast_ray(ang, look_ang, player_pos, walls, entities, projectiles)
         width = DISPLAY_RESOLUTION[0] / rays_amount
+
         if mode == 0:
             pixels = pygame.Surface((ceil(width), DISPLAY_RESOLUTION[1]))
         else:
             height = BLOCK_SIZE / layers[0][0] * 1000
             pixels = pygame.Surface((ceil(width), height))
+
+
+
+        pixels.fill("grey")
         for j in layers:
-            layer_height = BLOCK_SIZE / j[0] * 1000
+            layer_height = BLOCK_SIZE / j[0] * j[2]
             layer_line = pygame.transform.scale(j[1], (ceil(width), layer_height))
             pixels.blit(layer_line, (0, (DISPLAY_RESOLUTION[1] - layer_height) / 2))
 
