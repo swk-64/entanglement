@@ -124,9 +124,8 @@ while running:
 
     player_1.move()
 
-    state = pygame.mouse.get_pressed()
-    if state[0]:
-        print('hello!')
+    buttons = pygame.mouse.get_pressed()
+    if buttons[0]:
         proj = player_1.curr_weapon().use()
         if proj:
             projectiles.append(proj)

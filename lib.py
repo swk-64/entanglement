@@ -68,7 +68,7 @@ class Projectile:
     def __init__(self, pos: pygame.Vector2, ang: float, time):
         self.time = time
         self.decay_time = 1000
-        self.speed = 100
+        self.speed = 200
         self.color = "red"
         self.length = 20
         self.direction = pygame.Vector2(cos(ang), -sin(ang))
@@ -76,11 +76,9 @@ class Projectile:
     def update(self, dt: float):
         now = pygame.time.get_ticks()
         if now - self.time < self.decay_time:
-            self.time = now
             self.pos += self.direction * dt * self.speed
             return self
         return None
-
 
 
 class Wall:
@@ -280,14 +278,14 @@ def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
         return True
     return False
 
-def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: list, entities: list, projectiles: list):
+def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: list, entities: list, projectiles: list):
     min_distance = 1000.0
     layers = [(min_distance, pygame.Surface((1, 1)), 1000)]
     if cos(ang) == 0:
         k = None
     else:
         k = -sin(ang) / cos(ang)
-        b = start_point.y - k * start_point.x
+        b = player_pos.y - k * player_pos.x
 
 
     # process walls
@@ -304,14 +302,14 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
                     continue
                 elif k is None:
                     y = side[0][1]
-                    x = start_point.x
+                    x = player_pos.x
                 else:
                     y = side[0][1]
                     x = (y - b) / k
             inter = pygame.Vector2(x, y)
             if obj.pos.x - BLOCK_SIZE / 2 <= inter.x <= obj.pos.x + BLOCK_SIZE / 2 and obj.pos.y - BLOCK_SIZE / 2 <= inter.y <= obj.pos.y + BLOCK_SIZE / 2:
-                if is_visible(look_ang, start_point, inter):
-                    dist = distance(inter, start_point)
+                if is_visible(look_ang, player_pos, inter):
+                    dist = distance(inter, player_pos)
                     if min_distance > dist > MIN_RENDER_DISTANCE:
                         min_distance = dist
                         units_per_pixel = BLOCK_SIZE / (obj.texture.get_width())
@@ -323,17 +321,15 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
     # process entities
     for obj in entities:
         if cos(look_ang) == 0:
-            # k1 = 0
             if k == 0:
                 continue
             elif k is None:
                 y = obj.pos.y
-                x = start_point.x
+                x = player_pos.x
             else:
                 y = obj.pos.y
                 x = (y - b) / k
         elif sin(look_ang) == 0:
-            # k1 = None
             if k is None:
                 continue
             else:
@@ -343,7 +339,7 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
             k1 = cos(look_ang) / sin(look_ang)
             b1 = obj.pos.y - k1 * obj.pos.x
             if k is None:
-                x = start_point.x
+                x = player_pos.x
                 y = x * k1 + b1
             else:
                 x = (b1 - b) / (k - k1)
@@ -351,8 +347,8 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
 
         inter = pygame.Vector2(x, y)
         if (obj.pos.x - inter[0]) ** 2 + (obj.pos.y - inter[1]) ** 2 < ENTITY_HALF_SIZE**2:
-            if is_visible(look_ang, start_point, inter):
-                dist = distance(inter, start_point)
+            if is_visible(look_ang, player_pos, inter):
+                dist = distance(inter, player_pos)
                 if min_distance > dist > MIN_RENDER_DISTANCE:
                     texture = obj.get_current_texture()
                     shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
@@ -362,41 +358,40 @@ def cast_ray(ang: float, look_ang: float, start_point: pygame.Vector2, walls: li
                     line = arr[pixel_row:pixel_row + 1, :].make_surface()
                     layers.append((dist, line, 1000))
 
-        # process projectiles
-        for obj in projectiles:
-            if obj.direction.x == 0:
-                if k is None:
-                    continue
-                else:
-                    x = obj.pos.x
-                    y = k * x + b
-            elif obj.direction.y == 0:
-                if k == 0:
-                    continue
-                elif k is None:
-                    y = obj.pos.y
-                    x = start_point.x
-                else:
-                    y = obj.pos.y
-                    x = (y - b) / k
+    # process projectiles
+    for obj in projectiles:
+        if obj.direction.x == 0:
+            k1 = None
+        else:
+            k1 = obj.direction.y / obj.direction.x
+            b1 = obj.pos.y - k1 * obj.pos.x
+
+        if k is None:
+            if k1 is None:
+                continue
             else:
-                k1 = obj.direction.y / obj.direction.x
-                b1 = obj.pos.y - k1 * obj.pos.x
-                if k is None:
-                    x = start_point.x
-                    y = x * k1 + b1
-                else:
-                    x = (b1 - b) / (k - k1)
-                    y = k1 * x + b1
-            inter = pygame.Vector2(x, y)
-            middle_pos = obj.pos + obj.direction * obj.length / 2
-            if middle_pos.x - abs(obj.direction.x * obj.length / 2) <= inter.x <= middle_pos.x + abs(obj.direction.x * obj.length / 2) and middle_pos.y - abs(obj.direction.y * obj.length / 2) <= middle_pos.y + abs(obj.direction.y * obj.length / 2):
-                if is_visible(look_ang, start_point, inter):
-                    dist = distance(inter, start_point)
-                    if min_distance > dist > MIN_RENDER_DISTANCE:
-                        color = pygame.Surface((1, 1))
-                        color.fill(obj.color)
-                        layers.append((dist, color, 50))
+                x = player_pos.x
+                y = k1 * x + b1
+        elif k1 is None:
+            x = obj.pos.x
+            y = k * x + b
+        else:
+            if k1 == k:
+                continue
+            else:
+                x = (b1 - b) / (k - k1)
+                y = k * x + b
+        inter = pygame.Vector2(x, y)
+        vec1 = obj.pos
+        vec2 = obj.pos + obj.direction * obj.length
+        product = (vec2 - vec1).dot(inter - vec1)
+        if 0 < product < obj.length ** 2:
+            if is_visible(look_ang, player_pos, inter):
+                dist = distance(inter, player_pos)
+                if min_distance > dist > MIN_RENDER_DISTANCE:
+                    color = pygame.Surface((1, 1))
+                    color.fill(obj.color)
+                    layers.append((dist, color, 50))
 
 
     layers[1:].sort(key=lambda l: l[0])
