@@ -50,8 +50,7 @@ class AnimatedSprite:
 
 
 class Player:
-    def __init__(self, name: str, look_ang: float, pos: pygame.Vector2):
-        self.name = name
+    def __init__(self, pos: pygame.Vector2, look_ang=0.0):
         self.pos = pos
         self.look_ang = look_ang
         self.fov = pi / 2
@@ -244,25 +243,22 @@ class FloorBlock:
         pass
 
 
-class EntitySpawnBlock:
-    def __init__(self, pos: pygame.Vector2, entity_type: int):
+class SpawnBlockPlayer:
+    def __init__(self, pos: pygame.Vector2):
         self.pos = pos
-        self.entity_type = entity_type
-        pass
     def update_collision(self, obj):
         pass
     def spawn_entity(self):
-        if self.entity_type == 1:
-            return PelmenKing(self.pos)
-        else:
-            raise KeyError
+        return Player(self.pos)
 
 
-class SpawnBlock:
-    def __init__(self):
-        pass
+class SpawnBlockPelmenKing:
+    def __init__(self, pos: pygame.Vector2):
+        self.pos = pos
     def update_collision(self, obj):
         pass
+    def spawn_entity(self):
+        return PelmenKing(self.pos)
 
 
 def update_projectiles(objs:list, dt):
@@ -292,8 +288,10 @@ def update_collisions(objs: list, level: list):
 def minimap_fov_end_point(ang: float, length: float, pos: pygame.Vector2):
     return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
 
+
 def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]):
     return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
+
 
 def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
     player_vec = pygame.Vector2(cos(look_ang), -sin(look_ang))
@@ -301,6 +299,7 @@ def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
     if player_vec.dot(point_vec) > 0:
         return True
     return False
+
 
 def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: list, entities: list, projectiles: list):
     min_distance = 1000.0
@@ -310,7 +309,6 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
     else:
         k = -sin(ang) / cos(ang)
         b = player_pos.y - k * player_pos.x
-
 
     # process walls
     for obj in walls:
@@ -428,8 +426,7 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                     color.fill(obj.color)
                     layers.append((dist, color, 50))
 
-
-    layers[1:].sort(key=lambda l: l[0])
+    layers.sort(key=lambda l: l[0], reverse=True)
     return layers
 
 def render_image(screen: pygame.Surface, player: Player, walls: list, entities: list, projectiles: list,

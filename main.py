@@ -41,17 +41,25 @@ entities = list()
 update_collision_objs = list()
 projectiles = list()
 
+minimap = pygame.Surface((len(level_data[0]) * MINIMAP_BLOCK_SIZE, len(level_data) * MINIMAP_BLOCK_SIZE))
+minimap.convert()
+
 for y in range(len(level_data)):
     level_objs.append([])
     for x in range(len(level_data[y])):
         pos = pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2)
+        left_b = x * MINIMAP_BLOCK_SIZE
+        top_b = y * MINIMAP_BLOCK_SIZE
+        minimap_block = pygame.Rect(left_b, top_b, MINIMAP_BLOCK_SIZE, MINIMAP_BLOCK_SIZE)
         match level_data[y][x]:
             case "@":
-                block = SpawnBlock()
-                player_1 = Player("player_1", 0, pos)
+                block = SpawnBlockPlayer(pos)
+                player_1 = block.spawn_entity()
                 player_1.weapons.append(LaserGun(player_1))
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
+
+                color = SPAWN_POINT_COLOR
             case "#":
                 left = True
                 top = True
@@ -86,14 +94,22 @@ for y in range(len(level_data)):
                 walls.append(block)
                 level_objs[y].append(block)
 
+                color = WALL_COLOR
+
             case "!":
-                block = EntitySpawnBlock(pos, 1)
+                block = SpawnBlockPelmenKing(pos)
                 entity = block.spawn_entity()
                 entities.append(entity)
                 level_objs[y].append(block)
+
+                color = ENTITY_1_SPAWN_POINT_COLOR
             case _:
                 block = FloorBlock()
                 level_objs[y].append(block)
+
+                color = FLOOR_COLOR
+
+        pygame.draw.rect(minimap, color, minimap_block)
 
 while running:
     for event in pygame.event.get():
@@ -142,32 +158,12 @@ while running:
     render_image(screen, player_1, walls, entities, projectiles, RAYS_AMOUNT)
 
     # draw minimap
-    for y in range(len(level_data)):
-        for x in range(len(level_data[y])):
-            left_b = x * MINIMAP_BLOCK_SIZE
-            top_b = y * MINIMAP_BLOCK_SIZE
-            block = pygame.Rect(left_b, top_b, MINIMAP_BLOCK_SIZE, MINIMAP_BLOCK_SIZE)
-            match level_data[y][x]:
-                case "0":
-                    color = FLOOR_COLOR
-                case "#":
-                    color = WALL_COLOR
-                case "@":
-                    color = SPAWN_POINT_COLOR
-                case "!":
-                    color = ENTITY_1_SPAWN_POINT_COLOR
-                case _:
-                    color = BACKGROUND_COLOR
-            pygame.draw.rect(screen, color, block)
-
-    # draw visualisation of field of view
     look_ang = -((player_1.look_ang * 180 / pi) % 360)
-    fov = player_1.fov / 2 * 180 / pi
-    start_ang = round(look_ang - fov)
-    end_ang = round(look_ang + fov)
+    fov = player_1.fov * 90 / pi
+    start_ang = int(look_ang - fov)
+    end_ang = int(look_ang + fov)
+    screen.blit(minimap, (0, 0))
     gfxdraw.pie(screen, int(player_1.pos.x * MINIMAP_SCALE), int(player_1.pos.y * MINIMAP_SCALE), int(MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
-
-    # draw player
     pygame.draw.circle(screen, "yellow", player_1.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
 
     # show on display
