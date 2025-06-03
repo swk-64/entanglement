@@ -126,9 +126,11 @@ while running:
 
     buttons = pygame.mouse.get_pressed()
     if buttons[0]:
-        proj = player_1.curr_weapon().use(dt)
+        proj = player_1.curr_weapon().use()
         if proj:
             projectiles.append(proj)
+    else:
+        player_1.curr_weapon().is_active = False
 
     # mouse
     player_1.look_ang -= (pygame.mouse.get_pos()[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt

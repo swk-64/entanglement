@@ -72,24 +72,25 @@ class Player:
 class Weapon(AnimatedSprite):
     def __init__(self, user: Player, speed: int, frames: list):
         super().__init__(frames, speed)
-        self.start_time = 0
+        self.start_time = pygame.time.get_ticks()
         self.use_speed = speed
+        self.animation_speed = speed // 2
         self.user = user
-    def use(self, dt: int):
+        self.is_active = False
+    def use(self):
         now = pygame.time.get_ticks()
-        if  now - self.start_time > dt + 100:
-            self.start_time = now
+        if not self.is_active:
+            self.is_active = True
             self.curr_frame_number = 0
+            self.last_update = now
+        if  now - self.start_time > self.use_speed:
+            self.start_time = now
+            return Projectile(self.user.pos, self.user.look_ang, now)
         else:
-            self.start_time += dt
-            if now - self.start_time > self.use_speed:
-                self.start_time = now
-                return Projectile(self.user.pos, self.user.look_ang, now)
-        return None
+            return None
 
     def get_current_texture(self):
-        now = pygame.time.get_ticks()
-        if now - self.start_time < self.use_speed:
+        if self.is_active:
             return super().get_current_texture()
         else:
             return self.frames[0]
@@ -100,7 +101,7 @@ class LaserGun(Weapon):
         for i in range(3):
             image = pygame.image.load("textures/lasergun/" + str(i) + ".png")
             frames.append(image.convert_alpha())
-        super().__init__(user, 300, frames)
+        super().__init__(user, 800, frames)
 
 
 class Projectile:
