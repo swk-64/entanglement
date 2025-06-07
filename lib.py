@@ -1,3 +1,5 @@
+from xml.dom.minidom import Entity
+
 import pygame
 from math import sin, cos, pi, sqrt, ceil
 from typing import Union
@@ -27,6 +29,8 @@ PLAYER_LOOK_LINE_LEN = BLOCK_SIZE * 4 * MINIMAP_SCALE
 PLAYER_COLLISION_SIZE = 15
 PLAYER_SPEED = 70
 PLAYER_RUN_SPEED_MODIFIER = 2
+DOOR_FRAMES = 5
+DOOR_WIDTH = 2
 
 
 class AnimatedSprite:
@@ -105,19 +109,23 @@ class LaserGun(Weapon):
 
 class Projectile:
     def __init__(self, pos: pygame.Vector2, ang: float, time: int):
+        self.pos = pygame.Vector2(pos.x + cos(ang), pos.y - sin(ang))
         self.time = time
         self.decay_time = 1000
         self.speed = 200
         self.color = "red"
         self.length = 20
+        self.width = 2
         self.direction = pygame.Vector2(cos(ang), -sin(ang))
-        self.pos = pygame.Vector2(pos.x + cos(ang), pos.y - sin(ang))
     def update(self, dt: int):
         now = pygame.time.get_ticks()
         if now - self.time < self.decay_time:
             self.pos += self.direction * dt * self.speed
             return self
         return None
+    def get_lines(self):
+        rotated = pygame.Vector2(-self.direction.y, self.direction.x)
+        return (self.pos, self.direction, self.length), (self.pos - rotated * self.width / 2, rotated, self.width)
 
 
 class Wall:
@@ -222,9 +230,29 @@ class Wall:
 
 
 class EntityBasicClass(AnimatedSprite):
-    def __init__(self, pos: pygame.Vector2, frames: list):
+    def __init__(self, pos: pygame.Vector2, ai_type, frames: list):
         super().__init__(frames)
         self.pos = pos
+        self.speed = 2
+        self.vel = pygame.Vector2(0, 0)
+        self.ai = ai_type
+    def move(self):
+        self.pos += self.vel
+        self.vel = pygame.Vector2(0, 0)
+    def ai_update(self, player: Player):
+        self.ai(self, player)
+    def cur_block(self):
+        return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
+
+
+
+
+
+def chasing(entity: EntityBasicClass, player: Player):
+    if 250 > distance(player.pos, entity.pos) > 40:
+        vel = (player.pos - entity.pos).normalize() * entity.speed
+        entity.vel = vel
+
 
 
 class PelmenKing(EntityBasicClass):
@@ -233,7 +261,7 @@ class PelmenKing(EntityBasicClass):
         for i in range(12):
             image = pygame.image.load("textures/pelmen_king/" + str(i) + ".png")
             frames.append(image.convert_alpha())
-        super().__init__(pos, frames)
+        super().__init__(pos, chasing, frames)
 
 
 class FloorBlock:
@@ -285,8 +313,8 @@ def update_collisions(objs: list, level: list):
             pass
 
 
-def minimap_fov_end_point(ang: float, length: float, pos: pygame.Vector2):
-    return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
+# def minimap_fov_end_point(ang: float, length: float, pos: pygame.Vector2):
+#     return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
 
 
 def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]):
@@ -345,8 +373,9 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                         if pixel_row == texture_width:
                             pixel_row = 0
                         arr = pygame.PixelArray(obj.texture)
-                        line = arr[pixel_row:pixel_row + 1, :].make_surface()
-                        layers[0] = (dist, line, 1000)
+                        if arr[pixel_row:pixel_row + 1, :]:
+                            line = arr[pixel_row:pixel_row + 1, :].make_surface()
+                            layers[0] = (dist, line, 1000)
 
     # process entities
     for obj in entities:
@@ -393,38 +422,40 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
 
     # process projectiles
     for obj in projectiles:
-        if obj.direction.x == 0:
-            k1 = None
-        else:
-            k1 = obj.direction.y / obj.direction.x
-            b1 = obj.pos.y - k1 * obj.pos.x
+        for line in obj.get_lines():
+            if line[1].x == 0:
+                k1 = None
+            else:
+                k1 = line[1].y / line[1].x
+                b1 = line[0].y - k1 * line[0].x
 
-        if k is None:
-            if k1 is None:
-                continue
-            else:
-                x = player_pos.x
-                y = k1 * x + b1
-        elif k1 is None:
-            x = obj.pos.x
-            y = k * x + b
-        else:
-            if k1 == k:
-                continue
-            else:
-                x = (b1 - b) / (k - k1)
+            if k is None:
+                if k1 is None:
+                    continue
+                else:
+                    x = player_pos.x
+                    y = k1 * x + b1
+            elif k1 is None:
+                x = line[0].x
                 y = k * x + b
-        inter = pygame.Vector2(x, y)
-        vec1 = obj.pos
-        vec2 = obj.pos + obj.direction * obj.length
-        product = (vec2 - vec1).dot(inter - vec1)
-        if 0 < product < obj.length ** 2:
-            if is_visible(look_ang, player_pos, inter):
-                dist = distance(inter, player_pos)
-                if min_distance > dist > MIN_RENDER_DISTANCE:
-                    color = pygame.Surface((1, 1))
-                    color.fill(obj.color)
-                    layers.append((dist, color, 50))
+            else:
+                if k1 == k:
+                    continue
+                else:
+                    x = (b1 - b) / (k - k1)
+                    y = k * x + b
+            inter = pygame.Vector2(x, y)
+            vec1 = line[0]
+            vec2 = line[0] + line[1] * line[2]
+            product = (vec2 - vec1).dot(inter - vec1)
+            if 0 < product < line[2] ** 2:
+                if is_visible(look_ang, player_pos, inter):
+                    dist = distance(inter, player_pos)
+                    if min_distance > dist > MIN_RENDER_DISTANCE:
+                        layer = pygame.Surface((1, 1))
+                        layer.fill(obj.color)
+                        layers.append((dist, layer, 50))
+
 
     layers.sort(key=lambda l: l[0], reverse=True)
     return layers

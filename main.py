@@ -13,7 +13,7 @@ running = True
 dt = 0
 
 # load level
-file = open("levels/test_level.txt", "r")
+file = open("levels/level_3.txt", "r")
 
 
 '''
@@ -28,7 +28,9 @@ level symbols designations:
 
 #load textures
 block_texture = pygame.image.load("textures/stone_wall_2.jpg")
+door_texture = pygame.image.load("textures/white_red_tiles_wall.jpg")
 block_texture.convert()
+door_texture.convert()
 
 # read level data
 level_data = [i.rstrip() for i in file.readlines()]
@@ -101,6 +103,7 @@ for y in range(len(level_data)):
                 entity = block.spawn_entity()
                 entities.append(entity)
                 level_objs[y].append(block)
+                update_collision_objs.append(entity)
 
                 color = ENTITY_1_SPAWN_POINT_COLOR
             case _:
@@ -136,9 +139,12 @@ while running:
         velocity *= PLAYER_RUN_SPEED_MODIFIER
     player_1.vel = velocity
 
+    for obj in entities:
+        obj.ai_update(player_1)
     update_collisions(update_collision_objs, level_objs)
 
-    player_1.move()
+    for obj in update_collision_objs:
+        obj.move()
 
     buttons = pygame.mouse.get_pressed()
     if buttons[0]:
