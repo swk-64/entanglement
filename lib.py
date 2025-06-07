@@ -1,11 +1,9 @@
-from xml.dom.minidom import Entity
-
 import pygame
 from math import sin, cos, pi, sqrt, ceil
 from typing import Union
 
 
-# It is recommended to use 32x48 pixels texture sizes
+# It is recommended to use 32x48 pixels texture size
 
 
 # constants
