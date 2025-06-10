@@ -136,7 +136,6 @@ def draw_minimap(minimap, player_1, pos, screen):
 def main():
     pygame.init()
     pygame.font.init()
-    font = pygame.font.SysFont("Comic Sans MS", 30)
     screen = pygame.display.set_mode(lib.DISPLAY_RESOLUTION)
     clock = pygame.time.Clock()
     running = True
