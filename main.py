@@ -6,6 +6,11 @@ from pygame import gfxdraw
 import lib
 
 
+def read_level_data() -> None:
+    with open("levels/level_3.txt", "r") as f:
+        return [i.rstrip() for i in f.readlines()]
+
+
 def main():
     pygame.init()
     pygame.font.init()
@@ -15,8 +20,7 @@ def main():
     running = True
     dt = 0
 
-    # load level
-    file = open("levels/level_3.txt", "r")
+    level_data = read_level_data()
 
     """
     level symbols designations:
@@ -33,9 +37,6 @@ def main():
     door_texture = pygame.image.load("textures/white_red_tiles_wall.jpg")
     block_texture.convert()
     door_texture.convert()
-
-    # read level data
-    level_data = [i.rstrip() for i in file.readlines()]
 
     # process level data
     level_objs = list()
