@@ -1,5 +1,5 @@
 import pygame
-from lib import *
+import lib
 from math import sin, cos, pi
 from pygame import gfxdraw
 
@@ -7,7 +7,7 @@ from pygame import gfxdraw
 pygame.init()
 pygame.font.init()
 font = pygame.font.SysFont("Comic Sans MS", 30)
-screen = pygame.display.set_mode(DISPLAY_RESOLUTION)
+screen = pygame.display.set_mode(lib.DISPLAY_RESOLUTION)
 clock = pygame.time.Clock()
 running = True
 dt = 0
@@ -43,25 +43,25 @@ entities = list()
 update_collision_objs = list()
 projectiles = list()
 
-minimap = pygame.Surface((len(level_data[0]) * MINIMAP_BLOCK_SIZE, len(level_data) * MINIMAP_BLOCK_SIZE))
+minimap = pygame.Surface((len(level_data[0]) * lib.MINIMAP_BLOCK_SIZE, len(level_data) * lib.MINIMAP_BLOCK_SIZE))
 minimap.convert()
 
 for y in range(len(level_data)):
     level_objs.append([])
     for x in range(len(level_data[y])):
-        pos = pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2)
-        left_b = x * MINIMAP_BLOCK_SIZE
-        top_b = y * MINIMAP_BLOCK_SIZE
-        minimap_block = pygame.Rect(left_b, top_b, MINIMAP_BLOCK_SIZE, MINIMAP_BLOCK_SIZE)
+        pos = pygame.Vector2(x * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2, y * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2)
+        left_b = x * lib.MINIMAP_BLOCK_SIZE
+        top_b = y * lib.MINIMAP_BLOCK_SIZE
+        minimap_block = pygame.Rect(left_b, top_b, lib.MINIMAP_BLOCK_SIZE, lib.MINIMAP_BLOCK_SIZE)
         match level_data[y][x]:
             case "@":
-                block = SpawnBlockPlayer(pos)
+                block = lib.SpawnBlockPlayer(pos)
                 player_1 = block.spawn_entity()
-                player_1.weapons.append(LaserGun(player_1))
+                player_1.weapons.append(lib.LaserGun(player_1))
                 update_collision_objs.append(player_1)
                 level_objs[y].append(block)
 
-                color = SPAWN_POINT_COLOR
+                color = lib.SPAWN_POINT_COLOR
             case "#":
                 left = True
                 top = True
@@ -91,26 +91,26 @@ for y in range(len(level_data)):
 
                 neighbours = (left, top, right, bottom)
 
-                block = Wall(pos, '#', neighbours, block_texture)
+                block = lib.Wall(pos, '#', neighbours, block_texture)
 
                 walls.append(block)
                 level_objs[y].append(block)
 
-                color = WALL_COLOR
+                color = lib.WALL_COLOR
 
             case "!":
-                block = SpawnBlockPelmenKing(pos)
+                block = lib.SpawnBlockPelmenKing(pos)
                 entity = block.spawn_entity()
                 entities.append(entity)
                 level_objs[y].append(block)
                 update_collision_objs.append(entity)
 
-                color = ENTITY_1_SPAWN_POINT_COLOR
+                color = lib.ENTITY_1_SPAWN_POINT_COLOR
             case _:
-                block = FloorBlock()
+                block = lib.FloorBlock()
                 level_objs[y].append(block)
 
-                color = FLOOR_COLOR
+                color = lib.FLOOR_COLOR
 
         pygame.draw.rect(minimap, color, minimap_block)
 
@@ -133,15 +133,15 @@ while running:
         velocity += pygame.Vector2(sin(player_1.look_ang), cos(player_1.look_ang))
 
     if velocity != pygame.Vector2(0, 0):
-        velocity = velocity.normalize() * dt * PLAYER_SPEED
+        velocity = velocity.normalize() * dt * lib.PLAYER_SPEED
 
     if keys[pygame.K_LSHIFT]:
-        velocity *= PLAYER_RUN_SPEED_MODIFIER
+        velocity *= lib.PLAYER_RUN_SPEED_MODIFIER
     player_1.vel = velocity
 
     for obj in entities:
         obj.ai_update(player_1)
-    update_collisions(update_collision_objs, level_objs)
+    lib.update_collisions(update_collision_objs, level_objs)
 
     for obj in update_collision_objs:
         obj.move()
@@ -155,13 +155,13 @@ while running:
         player_1.curr_weapon().is_active = False
 
     # mouse
-    player_1.look_ang -= (pygame.mouse.get_pos()[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
-    pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
+    player_1.look_ang -= (pygame.mouse.get_pos()[0] - lib.DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    pygame.mouse.set_pos(lib.DISPLAY_RESOLUTION[0] / 2, lib.DISPLAY_RESOLUTION[1] / 2)
 
-    projectiles = update_projectiles(projectiles, dt)
+    projectiles = lib.update_projectiles(projectiles, dt)
 
     # render image
-    render_image(screen, player_1, walls, entities, projectiles, RAYS_AMOUNT)
+    lib.render_image(screen, player_1, walls, entities, projectiles, lib.RAYS_AMOUNT)
 
     # draw minimap
     look_ang = -((player_1.look_ang * 180 / pi) % 360)
@@ -169,8 +169,8 @@ while running:
     start_ang = int(look_ang - fov)
     end_ang = int(look_ang + fov)
     screen.blit(minimap, (0, 0))
-    gfxdraw.pie(screen, int(player_1.pos.x * MINIMAP_SCALE), int(player_1.pos.y * MINIMAP_SCALE), int(MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
-    pygame.draw.circle(screen, "yellow", player_1.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
+    gfxdraw.pie(screen, int(player_1.pos.x * lib.MINIMAP_SCALE), int(player_1.pos.y * lib.MINIMAP_SCALE), int(lib.MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
+    pygame.draw.circle(screen, "yellow", player_1.pos * lib.MINIMAP_SCALE, lib.MINIMAP_BLOCK_SIZE / 2)
 
     # show on display
     pygame.display.flip()
