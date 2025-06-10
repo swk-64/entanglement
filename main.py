@@ -39,11 +39,11 @@ def main():
     door_texture.convert()
 
     # process level data
-    level_objs = list()
-    walls = list()
-    entities = list()
-    update_collision_objs = list()
-    projectiles = list()
+    level_objs = []
+    walls = []
+    entities = []
+    update_collision_objs = []
+    projectiles = []
 
     minimap = pygame.Surface(
         (
