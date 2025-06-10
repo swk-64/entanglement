@@ -133,6 +133,50 @@ def draw_minimap(minimap, player_1, pos, screen):
     )
 
 
+def process_input(
+    dt, entities, level_objs, player_1, projectiles, update_collision_objs, velocity
+):
+    # keyboard
+    keys = pygame.key.get_pressed()
+
+    if keys[pygame.K_w]:
+        velocity += pygame.Vector2(cos(player_1.look_ang), -sin(player_1.look_ang))
+    if keys[pygame.K_s]:
+        velocity += pygame.Vector2(-cos(player_1.look_ang), sin(player_1.look_ang))
+    if keys[pygame.K_a]:
+        velocity += pygame.Vector2(-sin(player_1.look_ang), -cos(player_1.look_ang))
+    if keys[pygame.K_d]:
+        velocity += pygame.Vector2(sin(player_1.look_ang), cos(player_1.look_ang))
+
+    if velocity != pygame.Vector2(0, 0):
+        velocity = velocity.normalize() * dt * lib.PLAYER_SPEED
+
+    if keys[pygame.K_LSHIFT]:
+        velocity *= lib.PLAYER_RUN_SPEED_MODIFIER
+    player_1.vel = velocity
+
+    for obj in entities:
+        obj.ai_update(player_1)
+    lib.update_collisions(update_collision_objs, level_objs)
+
+    for obj in update_collision_objs:
+        obj.move()
+
+    # mouse
+    buttons = pygame.mouse.get_pressed()
+    if buttons[0]:
+        proj = player_1.curr_weapon().use()
+        if proj:
+            projectiles.append(proj)
+    else:
+        player_1.curr_weapon().is_active = False
+
+    player_1.look_ang -= (
+        (pygame.mouse.get_pos()[0] - lib.DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    )
+    pygame.mouse.set_pos(lib.DISPLAY_RESOLUTION[0] / 2, lib.DISPLAY_RESOLUTION[1] / 2)
+
+
 def main():
     pygame.init()
     pygame.font.init()
@@ -159,47 +203,15 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        # keyboard
-        keys = pygame.key.get_pressed()
-
         velocity = pygame.Vector2(0, 0)
-        if keys[pygame.K_w]:
-            velocity += pygame.Vector2(cos(player_1.look_ang), -sin(player_1.look_ang))
-        if keys[pygame.K_s]:
-            velocity += pygame.Vector2(-cos(player_1.look_ang), sin(player_1.look_ang))
-        if keys[pygame.K_a]:
-            velocity += pygame.Vector2(-sin(player_1.look_ang), -cos(player_1.look_ang))
-        if keys[pygame.K_d]:
-            velocity += pygame.Vector2(sin(player_1.look_ang), cos(player_1.look_ang))
-
-        if velocity != pygame.Vector2(0, 0):
-            velocity = velocity.normalize() * dt * lib.PLAYER_SPEED
-
-        if keys[pygame.K_LSHIFT]:
-            velocity *= lib.PLAYER_RUN_SPEED_MODIFIER
-        player_1.vel = velocity
-
-        for obj in entities:
-            obj.ai_update(player_1)
-        lib.update_collisions(update_collision_objs, level_objs)
-
-        for obj in update_collision_objs:
-            obj.move()
-
-        buttons = pygame.mouse.get_pressed()
-        if buttons[0]:
-            proj = player_1.curr_weapon().use()
-            if proj:
-                projectiles.append(proj)
-        else:
-            player_1.curr_weapon().is_active = False
-
-        # mouse
-        player_1.look_ang -= (
-            (pygame.mouse.get_pos()[0] - lib.DISPLAY_RESOLUTION[0] / 2) / 10 * dt
-        )
-        pygame.mouse.set_pos(
-            lib.DISPLAY_RESOLUTION[0] / 2, lib.DISPLAY_RESOLUTION[1] / 2
+        process_input(
+            dt,
+            entities,
+            level_objs,
+            player_1,
+            projectiles,
+            update_collision_objs,
+            velocity,
         )
 
         projectiles = lib.update_projectiles(projectiles, dt)
