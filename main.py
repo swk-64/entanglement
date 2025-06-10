@@ -11,19 +11,9 @@ def read_level_data() -> None:
         return [i.rstrip() for i in f.readlines()]
 
 
-def main():
-    pygame.init()
-    pygame.font.init()
-    font = pygame.font.SysFont("Comic Sans MS", 30)
-    screen = pygame.display.set_mode(lib.DISPLAY_RESOLUTION)
-    clock = pygame.time.Clock()
-    running = True
-    dt = 0
-
-    level_data = read_level_data()
-
+def setup_map(entities, level_data, level_objs, update_collision_objs, walls) -> None:
     """
-    level symbols designations:
+    level symbol designations:
         # - wall
         0 - floor
         @ - player spawn
@@ -32,18 +22,10 @@ def main():
         ...
     """
 
-    # load textures
     block_texture = pygame.image.load("textures/stone_wall_2.jpg")
     door_texture = pygame.image.load("textures/white_red_tiles_wall.jpg")
     block_texture.convert()
     door_texture.convert()
-
-    # process level data
-    level_objs = []
-    walls = []
-    entities = []
-    update_collision_objs = []
-    projectiles = []
 
     minimap = pygame.Surface(
         (
@@ -125,6 +107,30 @@ def main():
                     color = lib.FLOOR_COLOR
 
             pygame.draw.rect(minimap, color, minimap_block)
+    return minimap, player_1, pos
+
+
+def main():
+    pygame.init()
+    pygame.font.init()
+    font = pygame.font.SysFont("Comic Sans MS", 30)
+    screen = pygame.display.set_mode(lib.DISPLAY_RESOLUTION)
+    clock = pygame.time.Clock()
+    running = True
+    dt = 0
+
+    level_data = read_level_data()
+
+    # process level data
+    level_objs = []
+    walls = []
+    entities = []
+    update_collision_objs = []
+    projectiles = []
+
+    minimap, player_1, pos = setup_map(
+        entities, level_data, level_objs, update_collision_objs, walls
+    )
 
     while running:
         for event in pygame.event.get():
