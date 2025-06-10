@@ -1,7 +1,9 @@
-import pygame
-import lib
 from math import sin, cos, pi
+
+import pygame
 from pygame import gfxdraw
+
+import lib
 
 
 pygame.init()
@@ -16,7 +18,7 @@ dt = 0
 file = open("levels/level_3.txt", "r")
 
 
-'''
+"""
 level symbols designations:
     # - wall
     0 - floor
@@ -24,9 +26,9 @@ level symbols designations:
     ! - entity 1 spawn
     $ - entity 2 spawn
     ...
-'''
+"""
 
-#load textures
+# load textures
 block_texture = pygame.image.load("textures/stone_wall_2.jpg")
 door_texture = pygame.image.load("textures/white_red_tiles_wall.jpg")
 block_texture.convert()
@@ -36,23 +38,33 @@ door_texture.convert()
 level_data = [i.rstrip() for i in file.readlines()]
 
 
-#process level data
+# process level data
 level_objs = list()
 walls = list()
 entities = list()
 update_collision_objs = list()
 projectiles = list()
 
-minimap = pygame.Surface((len(level_data[0]) * lib.MINIMAP_BLOCK_SIZE, len(level_data) * lib.MINIMAP_BLOCK_SIZE))
+minimap = pygame.Surface(
+    (
+        len(level_data[0]) * lib.MINIMAP_BLOCK_SIZE,
+        len(level_data) * lib.MINIMAP_BLOCK_SIZE,
+    )
+)
 minimap.convert()
 
 for y in range(len(level_data)):
     level_objs.append([])
     for x in range(len(level_data[y])):
-        pos = pygame.Vector2(x * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2, y * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2)
+        pos = pygame.Vector2(
+            x * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2,
+            y * lib.BLOCK_SIZE + lib.BLOCK_SIZE // 2,
+        )
         left_b = x * lib.MINIMAP_BLOCK_SIZE
         top_b = y * lib.MINIMAP_BLOCK_SIZE
-        minimap_block = pygame.Rect(left_b, top_b, lib.MINIMAP_BLOCK_SIZE, lib.MINIMAP_BLOCK_SIZE)
+        minimap_block = pygame.Rect(
+            left_b, top_b, lib.MINIMAP_BLOCK_SIZE, lib.MINIMAP_BLOCK_SIZE
+        )
         match level_data[y][x]:
             case "@":
                 block = lib.SpawnBlockPlayer(pos)
@@ -91,7 +103,7 @@ for y in range(len(level_data)):
 
                 neighbours = (left, top, right, bottom)
 
-                block = lib.Wall(pos, '#', neighbours, block_texture)
+                block = lib.Wall(pos, "#", neighbours, block_texture)
 
                 walls.append(block)
                 level_objs[y].append(block)
@@ -155,7 +167,9 @@ while running:
         player_1.curr_weapon().is_active = False
 
     # mouse
-    player_1.look_ang -= (pygame.mouse.get_pos()[0] - lib.DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    player_1.look_ang -= (
+        (pygame.mouse.get_pos()[0] - lib.DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    )
     pygame.mouse.set_pos(lib.DISPLAY_RESOLUTION[0] / 2, lib.DISPLAY_RESOLUTION[1] / 2)
 
     projectiles = lib.update_projectiles(projectiles, dt)
@@ -169,8 +183,18 @@ while running:
     start_ang = int(look_ang - fov)
     end_ang = int(look_ang + fov)
     screen.blit(minimap, (0, 0))
-    gfxdraw.pie(screen, int(player_1.pos.x * lib.MINIMAP_SCALE), int(player_1.pos.y * lib.MINIMAP_SCALE), int(lib.MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
-    pygame.draw.circle(screen, "yellow", player_1.pos * lib.MINIMAP_SCALE, lib.MINIMAP_BLOCK_SIZE / 2)
+    gfxdraw.pie(
+        screen,
+        int(player_1.pos.x * lib.MINIMAP_SCALE),
+        int(player_1.pos.y * lib.MINIMAP_SCALE),
+        int(lib.MINIMAP_BLOCK_SIZE * 1.5),
+        start_ang,
+        end_ang,
+        pygame.Color("green"),
+    )
+    pygame.draw.circle(
+        screen, "yellow", player_1.pos * lib.MINIMAP_SCALE, lib.MINIMAP_BLOCK_SIZE / 2
+    )
 
     # show on display
     pygame.display.flip()
