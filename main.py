@@ -110,6 +110,29 @@ def setup_map(entities, level_data, level_objs, update_collision_objs, walls) ->
     return minimap, player_1, pos
 
 
+def draw_minimap(minimap, player_1, pos, screen):
+    look_ang = -((player_1.look_ang * 180 / pi) % 360)
+    fov = player_1.fov * 90 / pi
+    start_ang = int(look_ang - fov)
+    end_ang = int(look_ang + fov)
+    screen.blit(minimap, (0, 0))
+    gfxdraw.pie(
+        screen,
+        int(player_1.pos.x * lib.MINIMAP_SCALE),
+        int(player_1.pos.y * lib.MINIMAP_SCALE),
+        int(lib.MINIMAP_BLOCK_SIZE * 1.5),
+        start_ang,
+        end_ang,
+        pygame.Color("green"),
+    )
+    pygame.draw.circle(
+        screen,
+        "yellow",
+        player_1.pos * lib.MINIMAP_SCALE,
+        lib.MINIMAP_BLOCK_SIZE / 2,
+    )
+
+
 def main():
     pygame.init()
     pygame.font.init()
@@ -188,26 +211,7 @@ def main():
         )
 
         # draw minimap
-        look_ang = -((player_1.look_ang * 180 / pi) % 360)
-        fov = player_1.fov * 90 / pi
-        start_ang = int(look_ang - fov)
-        end_ang = int(look_ang + fov)
-        screen.blit(minimap, (0, 0))
-        gfxdraw.pie(
-            screen,
-            int(player_1.pos.x * lib.MINIMAP_SCALE),
-            int(player_1.pos.y * lib.MINIMAP_SCALE),
-            int(lib.MINIMAP_BLOCK_SIZE * 1.5),
-            start_ang,
-            end_ang,
-            pygame.Color("green"),
-        )
-        pygame.draw.circle(
-            screen,
-            "yellow",
-            player_1.pos * lib.MINIMAP_SCALE,
-            lib.MINIMAP_BLOCK_SIZE / 2,
-        )
+        draw_minimap(minimap, player_1, pos, screen)
 
         # show on display
         pygame.display.flip()
