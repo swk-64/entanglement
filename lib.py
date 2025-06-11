@@ -38,6 +38,7 @@ class AnimatedSprite:
         self.curr_frame_number = 0
         self.animation_speed = speed
         self.last_update = pygame.time.get_ticks()
+
     def update(self):
         now = pygame.time.get_ticks()
         if now - self.last_update > self.animation_speed:
@@ -46,6 +47,7 @@ class AnimatedSprite:
                 self.curr_frame_number = 0
             else:
                 self.curr_frame_number += 1
+
     def get_current_texture(self):
         self.update()
         return self.frames[self.curr_frame_number]
@@ -70,6 +72,7 @@ class Player:
     def curr_weapon(self):
         return self.weapons[self.curr_weapon_number]
 
+
 class Weapon(AnimatedSprite):
     def __init__(self, user: Player, speed: int, frames: list):
         super().__init__(frames, speed)
@@ -78,13 +81,14 @@ class Weapon(AnimatedSprite):
         self.animation_speed = speed // 2
         self.user = user
         self.is_active = False
+
     def use(self):
         now = pygame.time.get_ticks()
         if not self.is_active:
             self.is_active = True
             self.curr_frame_number = 0
             self.last_update = now
-        if  now - self.start_time > self.use_speed:
+        if now - self.start_time > self.use_speed:
             self.start_time = now
             return Projectile(self.user.pos, self.user.look_ang, now)
         else:
@@ -95,6 +99,7 @@ class Weapon(AnimatedSprite):
             return super().get_current_texture()
         else:
             return self.frames[0]
+
 
 class LaserGun(Weapon):
     def __init__(self, user: Player):
@@ -115,19 +120,31 @@ class Projectile:
         self.length = 20
         self.width = 2
         self.direction = pygame.Vector2(cos(ang), -sin(ang))
+
     def update(self, dt: int):
         now = pygame.time.get_ticks()
         if now - self.time < self.decay_time:
             self.pos += self.direction * dt * self.speed
             return self
         return None
+
     def get_lines(self):
         rotated = pygame.Vector2(-self.direction.y, self.direction.x)
-        return (self.pos, self.direction, self.length), (self.pos - rotated * self.width / 2, rotated, self.width)
+        return (self.pos, self.direction, self.length), (
+            self.pos - rotated * self.width / 2,
+            rotated,
+            self.width,
+        )
 
 
 class Wall:
-    def __init__(self, pos: pygame.Vector2, block_type: str, neighbours: tuple, texture: pygame.Surface):
+    def __init__(
+        self,
+        pos: pygame.Vector2,
+        block_type: str,
+        neighbours: tuple,
+        texture: pygame.Surface,
+    ):
         self.pos = pos
         self.type = block_type
 
@@ -140,55 +157,122 @@ class Wall:
         # collision areas
         def bottom(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2:
-                if self.pos.y + BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
+                if (
+                    self.pos.y + BLOCK_SIZE / 2
+                    <= obj.pos.y
+                    <= self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+                ):
                     if obj.vel.y < 0:
                         obj.vel += pygame.Vector2(0, -obj.vel.y)
+
         def top(obj: Player):
             if self.pos.x - BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2:
-                if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE <= obj.pos.y <= self.pos.y - BLOCK_SIZE / 2:
+                if (
+                    self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                    <= obj.pos.y
+                    <= self.pos.y - BLOCK_SIZE / 2
+                ):
                     if obj.vel.y > 0:
                         obj.vel += pygame.Vector2(0, -obj.vel.y)
+
         def left(obj: Player):
             if self.pos.y - BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2:
-                if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE <= obj.pos.x <= self.pos.x - BLOCK_SIZE / 2:
+                if (
+                    self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                    <= obj.pos.x
+                    <= self.pos.x - BLOCK_SIZE / 2
+                ):
                     if obj.vel.x > 0:
                         obj.vel += pygame.Vector2(-obj.vel.x, 0)
+
         def right(obj: Player):
             if self.pos.y - BLOCK_SIZE / 2 <= obj.pos.y <= self.pos.y + BLOCK_SIZE / 2:
-                if self.pos.x + BLOCK_SIZE / 2 <= obj.pos.x <= self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
+                if (
+                    self.pos.x + BLOCK_SIZE / 2
+                    <= obj.pos.x
+                    <= self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+                ):
                     if obj.vel.x < 0:
                         obj.vel += pygame.Vector2(-obj.vel.x, 0)
+
         def bottomleft(obj: Player):
-            if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.x < self.pos.x - BLOCK_SIZE / 2:
-                if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
+            if (
+                self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                < obj.pos.x
+                < self.pos.x - BLOCK_SIZE / 2
+            ):
+                if (
+                    self.pos.y + BLOCK_SIZE / 2
+                    < obj.pos.y
+                    < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+                ):
                     vec = pygame.Vector2(1, -1)
                     if vec.dot(obj.vel) > 0:
                         vec.scale_to_length(
-                            vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
+                            vec.dot(obj.vel)
+                            / (vec.magnitude() * obj.vel.magnitude())
+                            * obj.vel.magnitude()
+                        )
                         obj.vel -= vec
+
         def topleft(obj: Player):
-            if self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.x < self.pos.x - BLOCK_SIZE / 2:
-                if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.y < self.pos.y - BLOCK_SIZE / 2:
+            if (
+                self.pos.x - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                < obj.pos.x
+                < self.pos.x - BLOCK_SIZE / 2
+            ):
+                if (
+                    self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                    < obj.pos.y
+                    < self.pos.y - BLOCK_SIZE / 2
+                ):
                     vec = pygame.Vector2(1, 1)
                     if vec.dot(obj.vel) > 0:
                         vec.scale_to_length(
-                            vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
+                            vec.dot(obj.vel)
+                            / (vec.magnitude() * obj.vel.magnitude())
+                            * obj.vel.magnitude()
+                        )
                         obj.vel -= vec
+
         def bottomright(obj: Player):
-            if self.pos.x + BLOCK_SIZE / 2 < obj.pos.x < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
-                if self.pos.y + BLOCK_SIZE / 2 < obj.pos.y < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
+            if (
+                self.pos.x + BLOCK_SIZE / 2
+                < obj.pos.x
+                < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+            ):
+                if (
+                    self.pos.y + BLOCK_SIZE / 2
+                    < obj.pos.y
+                    < self.pos.y + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+                ):
                     vec = pygame.Vector2(-1, -1)
                     if vec.dot(obj.vel) > 0:
                         vec.scale_to_length(
-                            vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
+                            vec.dot(obj.vel)
+                            / (vec.magnitude() * obj.vel.magnitude())
+                            * obj.vel.magnitude()
+                        )
                         obj.vel -= vec
+
         def topright(obj: Player):
-            if self.pos.x + BLOCK_SIZE / 2 < obj.pos.x < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE:
-                if self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE < obj.pos.y < self.pos.y - BLOCK_SIZE / 2:
+            if (
+                self.pos.x + BLOCK_SIZE / 2
+                < obj.pos.x
+                < self.pos.x + BLOCK_SIZE / 2 + PLAYER_COLLISION_SIZE
+            ):
+                if (
+                    self.pos.y - BLOCK_SIZE / 2 - PLAYER_COLLISION_SIZE
+                    < obj.pos.y
+                    < self.pos.y - BLOCK_SIZE / 2
+                ):
                     vec = pygame.Vector2(-1, 1)
                     if vec.dot(obj.vel) > 0:
                         vec.scale_to_length(
-                            vec.dot(obj.vel) / (vec.magnitude() * obj.vel.magnitude()) * obj.vel.magnitude())
+                            vec.dot(obj.vel)
+                            / (vec.magnitude() * obj.vel.magnitude())
+                            * obj.vel.magnitude()
+                        )
                         obj.vel -= vec
 
         connections = set()
@@ -222,6 +306,7 @@ class Wall:
         self.sides = tuple(connections)
         self.collisions = tuple(collisions)
         self.texture = texture
+
     def update_collision(self, obj: Player):
         for collision in self.collisions:
             collision(obj)
@@ -234,23 +319,22 @@ class EntityBasicClass(AnimatedSprite):
         self.speed = 2
         self.vel = pygame.Vector2(0, 0)
         self.ai = ai_type
+
     def move(self):
         self.pos += self.vel
         self.vel = pygame.Vector2(0, 0)
+
     def ai_update(self, player: Player):
         self.ai(self, player)
+
     def cur_block(self):
         return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
-
-
-
 
 
 def chasing(entity: EntityBasicClass, player: Player):
     if 250 > distance(player.pos, entity.pos) > 40:
         vel = (player.pos - entity.pos).normalize() * entity.speed
         entity.vel = vel
-
 
 
 class PelmenKing(EntityBasicClass):
@@ -265,6 +349,7 @@ class PelmenKing(EntityBasicClass):
 class FloorBlock:
     def __init__(self):
         pass
+
     def update_collision(self, obj):
         pass
 
@@ -272,8 +357,10 @@ class FloorBlock:
 class SpawnBlockPlayer:
     def __init__(self, pos: pygame.Vector2):
         self.pos = pos
+
     def update_collision(self, obj):
         pass
+
     def spawn_entity(self):
         return Player(self.pos)
 
@@ -281,19 +368,22 @@ class SpawnBlockPlayer:
 class SpawnBlockPelmenKing:
     def __init__(self, pos: pygame.Vector2):
         self.pos = pos
+
     def update_collision(self, obj):
         pass
+
     def spawn_entity(self):
         return PelmenKing(self.pos)
 
 
-def update_projectiles(objs:list, dt):
+def update_projectiles(objs: list, dt):
     projectiles = list()
     for obj in objs:
         projectile = obj.update(dt)
         if projectile:
             projectiles.append(projectile)
     return projectiles
+
 
 def update_collisions(objs: list, level: list):
     for obj in objs:
@@ -315,7 +405,9 @@ def update_collisions(objs: list, level: list):
 #     return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
 
 
-def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]):
+def distance(
+    point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]
+):
     return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
 
 
@@ -327,7 +419,14 @@ def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
     return False
 
 
-def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: list, entities: list, projectiles: list):
+def cast_ray(
+    ang: float,
+    look_ang: float,
+    player_pos: pygame.Vector2,
+    walls: list,
+    entities: list,
+    projectiles: list,
+):
     min_distance = 1000.0
     layers = [(min_distance, pygame.Surface((1, 1)), 1000)]
     if cos(ang) == 0:
@@ -355,7 +454,10 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                     y = side[0][1]
                     x = (y - b) / k
             inter = pygame.Vector2(x, y)
-            if obj.pos.x - BLOCK_SIZE / 2 <= inter.x <= obj.pos.x + BLOCK_SIZE / 2 and obj.pos.y - BLOCK_SIZE / 2 <= inter.y <= obj.pos.y + BLOCK_SIZE / 2:
+            if (
+                obj.pos.x - BLOCK_SIZE / 2 <= inter.x <= obj.pos.x + BLOCK_SIZE / 2
+                and obj.pos.y - BLOCK_SIZE / 2 <= inter.y <= obj.pos.y + BLOCK_SIZE / 2
+            ):
                 if is_visible(look_ang, player_pos, inter):
                     dist = distance(inter, player_pos)
                     if min_distance > dist > MIN_RENDER_DISTANCE:
@@ -371,8 +473,8 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                         if pixel_row == texture_width:
                             pixel_row = 0
                         arr = pygame.PixelArray(obj.texture)
-                        if arr[pixel_row:pixel_row + 1, :]:
-                            line = arr[pixel_row:pixel_row + 1, :].make_surface()
+                        if arr[pixel_row : pixel_row + 1, :]:
+                            line = arr[pixel_row : pixel_row + 1, :].make_surface()
                             layers[0] = (dist, line, 1000)
 
     # process entities
@@ -403,19 +505,24 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                 y = k1 * x + b1
 
         inter = pygame.Vector2(x, y)
-        if (obj.pos.x - inter[0]) ** 2 + (obj.pos.y - inter[1]) ** 2 < ENTITY_HALF_SIZE**2:
+        if (obj.pos.x - inter[0]) ** 2 + (
+            obj.pos.y - inter[1]
+        ) ** 2 < ENTITY_HALF_SIZE**2:
             if is_visible(look_ang, player_pos, inter):
                 dist = distance(inter, player_pos)
                 if min_distance > dist > MIN_RENDER_DISTANCE:
                     texture = obj.get_current_texture()
-                    shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
+                    shifted = pygame.Vector2(
+                        cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x,
+                        -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y,
+                    )
                     units_per_pixel = ENTITY_SIZE / texture.get_width()
                     pixel_row = int(distance(shifted, inter) // units_per_pixel)
                     # for the situation if ray got accurate in end
                     if pixel_row == texture.get_width():
                         pixel_row = 0
                     arr = pygame.PixelArray(texture)
-                    line = arr[pixel_row:pixel_row + 1, :].make_surface()
+                    line = arr[pixel_row : pixel_row + 1, :].make_surface()
                     layers.append((dist, line, 1000))
 
     # process projectiles
@@ -454,12 +561,19 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
                         layer.fill(obj.color)
                         layers.append((dist, layer, 50))
 
-
     layers.sort(key=lambda l: l[0], reverse=True)
     return layers
 
-def render_image(screen: pygame.Surface, player: Player, walls: list, entities: list, projectiles: list,
-                 rays_amount: int, mode=0):
+
+def render_image(
+    screen: pygame.Surface,
+    player: Player,
+    walls: list,
+    entities: list,
+    projectiles: list,
+    rays_amount: int,
+    mode=0,
+):
 
     pos = player.pos
     look_ang = player.look_ang
@@ -468,7 +582,9 @@ def render_image(screen: pygame.Surface, player: Player, walls: list, entities: 
     ang_between_rays = fov / rays_amount
     ang = look_ang + fov / 2
 
-    weapon = pygame.transform.scale(player.curr_weapon().get_current_texture(), (400, 400))
+    weapon = pygame.transform.scale(
+        player.curr_weapon().get_current_texture(), (400, 400)
+    )
 
     for i in range(rays_amount):
         layers = cast_ray(ang, look_ang, pos, walls, entities, projectiles)
@@ -488,5 +604,8 @@ def render_image(screen: pygame.Surface, player: Player, walls: list, entities: 
         screen.blit(pixels, (i * width, 0))
 
         ang -= ang_between_rays
-    weapon_pos = ((DISPLAY_RESOLUTION[0] - weapon.get_width()) // 2, DISPLAY_RESOLUTION[1] - weapon.get_height())
+    weapon_pos = (
+        (DISPLAY_RESOLUTION[0] - weapon.get_width()) // 2,
+        DISPLAY_RESOLUTION[1] - weapon.get_height(),
+    )
     screen.blit(weapon, weapon_pos)
