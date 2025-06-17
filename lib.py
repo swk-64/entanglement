@@ -1,7 +1,7 @@
 import pygame
+from pygame import gfxdraw
 from math import sin, cos, pi, sqrt, ceil
 from typing import Union
-
 
 # It is recommended to use 32x48 pixels texture size
 
@@ -10,7 +10,7 @@ from typing import Union
 DISPLAY_RESOLUTION = (1280, 720)
 BLOCK_SIZE = 50
 RAYS_AMOUNT = 200
-MINIMAP_SCALE = 0.5
+MINIMAP_SCALE = 0.3
 MINIMAP_BLOCK_SIZE = BLOCK_SIZE * MINIMAP_SCALE
 MIN_RENDER_DISTANCE = 10
 ENTITY_SIZE = 50
@@ -18,7 +18,7 @@ ENTITY_HALF_SIZE = ENTITY_SIZE / 2
 
 SPAWN_POINT_COLOR = "green"
 ENTITY_1_SPAWN_POINT_COLOR = "red"
-WALL_COLOR = "white"
+HASH_COLOR = "white"
 FLOOR_COLOR = "grey"
 BACKGROUND_COLOR = "black"
 
@@ -30,15 +30,16 @@ PLAYER_RUN_SPEED_MODIFIER = 2
 DOOR_FRAMES = 5
 DOOR_WIDTH = 2
 
+WALL_SYMS = '#'
 
-class AnimatedSprite:
-    def __init__(self, frames: list, speed=100):
+class AnimatedImage:
+    def __init__(self, frames: list[pygame.Surface], speed=100):
         self.frames = frames
         self.frames_number = len(frames)
         self.curr_frame_number = 0
         self.animation_speed = speed
         self.last_update = pygame.time.get_ticks()
-    def update(self):
+    def check_time(self):
         now = pygame.time.get_ticks()
         if now - self.last_update > self.animation_speed:
             self.last_update = now
@@ -46,59 +47,118 @@ class AnimatedSprite:
                 self.curr_frame_number = 0
             else:
                 self.curr_frame_number += 1
-    def get_current_texture(self):
-        self.update()
+    def get_cur_texture(self):
+        self.check_time()
         return self.frames[self.curr_frame_number]
 
 
-class Player:
-    def __init__(self, pos: pygame.Vector2, look_ang=0.0):
+class EntityBasicClass:
+    def __init__(self, pos: pygame.Vector2, speed: int, health=100):
         self.pos = pos
-        self.look_ang = look_ang
-        self.fov = pi / 2
+        self.speed = speed
         self.vel = pygame.Vector2(0, 0)
-        self.weapons = list()
-        self.curr_weapon_number = 0
-
-    def cur_block(self):
-        return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
+        self.health = health
 
     def move(self):
         self.pos += self.vel
         self.vel = pygame.Vector2(0, 0)
 
-    def curr_weapon(self):
+    def check_collision(self, level: list):
+        x, y = self.cur_block()
+
+        if 0 < x < len(level[0]) - 1 and 0 < y < len(level) - 1:
+            level[y - 1][x - 1].check_collision(self)
+            level[y + 1][x + 1].check_collision(self)
+            level[y + 1][x - 1].check_collision(self)
+            level[y - 1][x + 1].check_collision(self)
+            level[y][x - 1].check_collision(self)
+            level[y - 1][x].check_collision(self)
+            level[y][x + 1].check_collision(self)
+            level[y + 1][x].check_collision(self)
+
+    def update_ai(self, player: "Player", dt: int):
+        pass
+
+    def deal_damage(self, damage: int):
+        self.health -= damage
+
+    def cur_block(self):
+        return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
+
+
+class Sprite(EntityBasicClass):
+    def __init__(self, pos: pygame.Vector2, speed: int):
+        super().__init__(pos, speed)
+
+    def get_cur_points(self, player: "Player"):
+        point1 = pygame.Vector2(cos(player.look_ang) * ENTITY_HALF_SIZE + self.pos.x, sin(player.look_ang) * ENTITY_HALF_SIZE + self.pos.y)
+        point2 = pygame.Vector2(-cos(player.look_ang) * ENTITY_HALF_SIZE + self.pos.x, -sin(player.look_ang) * ENTITY_HALF_SIZE + self.pos.y)
+        return point1, point2
+
+
+class Player(EntityBasicClass):
+    def __init__(self, pos: pygame.Vector2, look_ang=0.0):
+        super().__init__(pos, PLAYER_SPEED)
+        self.look_ang = look_ang
+        self.fov = pi / 2
+        self.weapons = []
+        self.curr_weapon_number = 0
+
+    def cur_weapon(self):
         return self.weapons[self.curr_weapon_number]
 
-class Weapon(AnimatedSprite):
-    def __init__(self, user: Player, speed: int, frames: list):
-        super().__init__(frames, speed)
+
+class Enemy(EntityBasicClass):
+    def __init__(self, pos: pygame.Vector2, speed: int, frames: list[pygame.Surface], ai):
+        super().__init__(pos, speed)
+        self.ai = ai
+        self.texture = AnimatedImage(frames)
+        self.damage_time = None
+        self.damage_duration = 300
+    def update_ai(self, player: Player, dt: int):
+        self.ai(self, player, dt)
+    def deal_damage(self, damage: int):
+        self.health -= damage
+        self.damage_time = pygame.time.get_ticks()
+    def get_cur_texture(self):
+        now = pygame.time.get_ticks()
+
+        if not (self.damage_time is None):
+            if now - self.damage_time >= self.damage_duration:
+                self.damage_time = None
+            else:
+                texture = self.texture.get_cur_texture().copy()
+                red_rect = pygame.Surface(texture.get_size()).convert_alpha()
+                red_rect.fill(pygame.Color(255, 0, 0, 100))
+                texture.blit(red_rect, (0, 0))
+                return texture
+        return self.texture.get_cur_texture()
+
+
+class Weapon:
+    def __init__(self, user: Player, speed: int, frames: list[pygame.Surface]):
+        self.texture = AnimatedImage(frames, int(speed // len(frames)))
         self.start_time = pygame.time.get_ticks()
         self.use_speed = speed
-        self.animation_speed = speed // 2
         self.user = user
         self.is_active = False
     def use(self):
-        now = pygame.time.get_ticks()
-        if not self.is_active:
-            self.is_active = True
-            self.curr_frame_number = 0
-            self.last_update = now
-        if  now - self.start_time > self.use_speed:
-            self.start_time = now
-            return Projectile(self.user.pos, self.user.look_ang, now)
-        else:
-            return None
-
-    def get_current_texture(self):
         if self.is_active:
-            return super().get_current_texture()
+            now = pygame.time.get_ticks()
+            if now - self.start_time >= self.use_speed:
+                self.is_active = False
+                return Projectile(self.user.pos, self.user.look_ang, now)
+        return None
+
+    def get_cur_texture(self):
+        if self.is_active:
+            return self.texture.get_cur_texture()
         else:
-            return self.frames[0]
+            return self.texture.frames[0]
 
 class LaserGun(Weapon):
     def __init__(self, user: Player):
-        frames = list()
+        frames = []
         for i in range(3):
             image = pygame.image.load("textures/lasergun/" + str(i) + ".png")
             frames.append(image.convert_alpha())
@@ -115,6 +175,7 @@ class Projectile:
         self.length = 20
         self.width = 2
         self.direction = pygame.Vector2(cos(ang), -sin(ang))
+        self.damaged_entities = []
     def update(self, dt: int):
         now = pygame.time.get_ticks()
         if now - self.time < self.decay_time:
@@ -130,6 +191,7 @@ class Wall:
     def __init__(self, pos: pygame.Vector2, block_type: str, neighbours: tuple, texture: pygame.Surface):
         self.pos = pos
         self.type = block_type
+        self.texture = texture
 
         # wall points
         top_left = (pos.x - BLOCK_SIZE / 2, pos.y - BLOCK_SIZE / 2)
@@ -221,99 +283,225 @@ class Wall:
 
         self.sides = tuple(connections)
         self.collisions = tuple(collisions)
-        self.texture = texture
-    def update_collision(self, obj: Player):
+    def check_collision(self, obj: Player):
         for collision in self.collisions:
             collision(obj)
-
-
-class EntityBasicClass(AnimatedSprite):
-    def __init__(self, pos: pygame.Vector2, ai_type, frames: list):
-        super().__init__(frames)
-        self.pos = pos
-        self.speed = 2
-        self.vel = pygame.Vector2(0, 0)
-        self.ai = ai_type
-    def move(self):
-        self.pos += self.vel
-        self.vel = pygame.Vector2(0, 0)
-    def ai_update(self, player: Player):
-        self.ai(self, player)
-    def cur_block(self):
-        return int(self.pos.x // BLOCK_SIZE), int(self.pos.y // BLOCK_SIZE)
-
-
-
-
-
-def chasing(entity: EntityBasicClass, player: Player):
-    if 250 > distance(player.pos, entity.pos) > 40:
-        vel = (player.pos - entity.pos).normalize() * entity.speed
-        entity.vel = vel
-
-
-
-class PelmenKing(EntityBasicClass):
-    def __init__(self, pos: pygame.Vector2):
-        frames = list()
-        for i in range(12):
-            image = pygame.image.load("textures/pelmen_king/" + str(i) + ".png")
-            frames.append(image.convert_alpha())
-        super().__init__(pos, chasing, frames)
 
 
 class FloorBlock:
     def __init__(self):
         pass
-    def update_collision(self, obj):
+    def check_collision(self, obj):
         pass
 
 
 class SpawnBlockPlayer:
     def __init__(self, pos: pygame.Vector2):
         self.pos = pos
-    def update_collision(self, obj):
+    def check_collision(self, obj):
         pass
     def spawn_entity(self):
         return Player(self.pos)
 
 
-class SpawnBlockPelmenKing:
-    def __init__(self, pos: pygame.Vector2):
+class SpawnBlockEnemy:
+    def __init__(self, pos: pygame.Vector2, frames: list[pygame.Surface], speed: int, ai):
         self.pos = pos
-    def update_collision(self, obj):
+        # block's entity traits
+        self.entity_frames = frames
+        self.entity_speed = speed
+        self.entity_ai = ai
+    def check_collision(self, obj):
         pass
     def spawn_entity(self):
-        return PelmenKing(self.pos)
+        return init_enemy(self.pos, self.entity_frames, self.entity_speed, self.entity_ai)
+
+def load_level(screen:pygame.Surface, path: str):
+    stone_wall_1_texture = pygame.image.load("./textures/stone_wall_1.jpg").convert()
+    pelmen_king_frames = []
+    for i in range(12):
+        frame = pygame.image.load(f"./textures/pelmen_king/{i}.png").convert_alpha()
+        pelmen_king_frames.append(frame)
 
 
-def update_projectiles(objs:list, dt):
-    projectiles = list()
-    for obj in objs:
-        projectile = obj.update(dt)
+    file = open(path, "r")
+
+    level_data = [i.rstrip() for i in file.readlines()]
+
+    # process level data
+    level_objs_map = []
+    walls = []
+    entities = []
+    player = None
+
+    minimap = pygame.Surface((len(level_data[0]) * MINIMAP_BLOCK_SIZE, len(level_data) * MINIMAP_BLOCK_SIZE)).convert()
+
+    for y in range(len(level_data)):
+        level_objs_map.append([])
+        for x in range(len(level_data[y])):
+            pos = pygame.Vector2(x * BLOCK_SIZE + BLOCK_SIZE // 2, y * BLOCK_SIZE + BLOCK_SIZE // 2)
+            left_b = x * MINIMAP_BLOCK_SIZE
+            top_b = y * MINIMAP_BLOCK_SIZE
+            minimap_block = pygame.Rect(left_b, top_b, MINIMAP_BLOCK_SIZE, MINIMAP_BLOCK_SIZE)
+            match level_data[y][x]:
+                case "@":
+                    block = SpawnBlockPlayer(pos)
+                    player = block.spawn_entity()
+                    player.weapons.append(LaserGun(player))
+
+                    level_objs_map[y].append(block)
+
+                    minimap_block_color = SPAWN_POINT_COLOR
+                case "#":
+                    block = init_wall(level_data, "#", pos, stone_wall_1_texture, x, y)
+
+                    walls.append(block)
+                    level_objs_map[y].append(block)
+
+                    minimap_block_color = HASH_COLOR
+
+                case "!":
+                    block = SpawnBlockEnemy(pos, pelmen_king_frames, PLAYER_SPEED * 2, chasing)
+                    entity = block.spawn_entity()
+                    entities.append(entity)
+                    level_objs_map[y].append(block)
+
+                    minimap_block_color = ENTITY_1_SPAWN_POINT_COLOR
+                case _:
+                    block = FloorBlock()
+                    level_objs_map[y].append(block)
+
+                    minimap_block_color = FLOOR_COLOR
+
+            pygame.draw.rect(minimap, minimap_block_color, minimap_block)
+    if player is None:
+        raise IOError("No player block found")
+
+    return player, level_objs_map, walls, entities, minimap
+
+def draw_minimap(screen:pygame.Surface, minimap:pygame.Surface, player:Player):
+    screen.blit(minimap, (0, 0))
+    looking_ang = -((player.look_ang * 180 / pi) % 360)
+    fov = player.fov * 90 / pi
+    start_ang = int(looking_ang - fov)
+    end_ang = int(looking_ang + fov)
+    gfxdraw.pie(screen, int(player.pos.x * MINIMAP_SCALE), int(player.pos.y * MINIMAP_SCALE), int(MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
+    pygame.draw.circle(screen, "yellow", player.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
+
+def chasing(entity: EntityBasicClass, player: Player, dt: int):
+    if 250 > distance(player.pos, entity.pos) > 40:
+        vel = (player.pos - entity.pos).normalize() * entity.speed * dt
+        entity.vel = vel
+
+def init_enemy(pos: pygame.Vector2, frames: list[pygame.Surface], speed: int, ai):
+    entity = Enemy(pos, speed, frames, ai)
+    return entity
+
+def process_projectiles(projs: list[Projectile], entities: list[EntityBasicClass], dt: int):
+    projectiles = []
+    for proj in projs:
+        projectile = proj.update(dt)
         if projectile:
+            for entity in entities:
+                if (entity.pos.x - proj.pos.x) ** 2 + (entity.pos.y - proj.pos.y) ** 2 < ENTITY_HALF_SIZE**2:
+                    if entity not in proj.damaged_entities:
+                        entity.deal_damage(10)
+                        proj.damaged_entities.append(entity)
             projectiles.append(projectile)
     return projectiles
 
-def update_collisions(objs: list, level: list):
-    for obj in objs:
-        block = obj.cur_block()
-        try:
-            level[block[1] + 1][block[0]].update_collision(obj)
-            level[block[1] - 1][block[0]].update_collision(obj)
-            level[block[1]][block[0] + 1].update_collision(obj)
-            level[block[1]][block[0] - 1].update_collision(obj)
-            level[block[1] - 1][block[0] + 1].update_collision(obj)
-            level[block[1] + 1][block[0] - 1].update_collision(obj)
-            level[block[1] + 1][block[0] + 1].update_collision(obj)
-            level[block[1] - 1][block[0] - 1].update_collision(obj)
-        except IndexError:
-            pass
+def update_entities(entities: list[EntityBasicClass]):
+    valid_entities = []
+    for entity in entities:
+        if entity.health > 0:
+            valid_entities.append(entity)
+    return valid_entities
 
+def process_movement(entities:list, player: Player, level_map: list, dt: int) -> None:
+    for obj in entities:
+        obj.update_ai(player, dt)
+        obj.check_collision(level_map)
+        obj.move()
+    player.check_collision(level_map)
+    player.move()
 
-# def minimap_fov_end_point(ang: float, length: float, pos: pygame.Vector2):
-#     return pygame.Vector2(cos(ang) * length + pos[0], - sin(ang) * length + pos[1])
+def process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt: int, player: Player, projectiles) -> None:
 
+    # keyboard
+    velocity = pygame.Vector2(0, 0)
+    if pressed_keys[pygame.K_w]:
+        velocity += pygame.Vector2(cos(player.look_ang), -sin(player.look_ang))
+    if pressed_keys[pygame.K_s]:
+        velocity += pygame.Vector2(-cos(player.look_ang), sin(player.look_ang))
+    if pressed_keys[pygame.K_a]:
+        velocity += pygame.Vector2(-sin(player.look_ang), -cos(player.look_ang))
+    if pressed_keys[pygame.K_d]:
+        velocity += pygame.Vector2(sin(player.look_ang), cos(player.look_ang))
+
+    if velocity != pygame.Vector2(0, 0):
+        velocity = velocity.normalize() * dt * player.speed
+
+    if pressed_keys[pygame.K_LSHIFT]:
+        velocity *= PLAYER_RUN_SPEED_MODIFIER
+    player.vel = velocity
+
+    # mouse buttons
+    cur_weapon = player.cur_weapon()
+    if pressed_mouse_buttons[0]:
+        if not cur_weapon.is_active:
+            cur_weapon.is_active = True
+            now = pygame.time.get_ticks()
+            cur_weapon.start_time = now
+            cur_weapon.texture.curr_frame_number = 0
+            cur_weapon.texture.last_update = now
+        proj = player.cur_weapon().use()
+        if proj:
+            projectiles.append(proj)
+    elif cur_weapon.is_active:
+        player.cur_weapon().is_active = False
+    # mouse movement
+    player.look_ang -= (mouse_pos[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+    pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
+
+def init_wall(level_data: list,
+              wall_type: str,
+              wall_pos: pygame.Vector2,
+              texture: pygame.Surface,
+              x: int,
+              y: int
+              ):
+    edges = []
+    # True - There isn't neighbour, False - opposite
+    left = True
+    top = True
+    right = True
+    bottom = True
+
+    if x != 0:
+        if level_data[y][x - 1] in WALL_SYMS:
+            left = False
+    else:
+        left = False
+    if y != 0:
+        if level_data[y - 1][x] in WALL_SYMS:
+            top = False
+
+    else:
+        top = False
+    if x != len(level_data[y]) - 1:
+        if level_data[y][x + 1] in WALL_SYMS:
+            right = False
+    else:
+        right = False
+    if y != len(level_data) - 1:
+        if level_data[y + 1][x] in WALL_SYMS:
+            bottom = False
+    else:
+        bottom = False
+
+    neighbours = (left, top, right, bottom)
+    block = Wall(wall_pos, wall_type, neighbours, texture)
+    return block
 
 def distance(point1: Union[pygame.Vector2, tuple], point2: Union[pygame.Vector2, tuple]):
     return sqrt((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2)
@@ -407,7 +595,7 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
             if is_visible(look_ang, player_pos, inter):
                 dist = distance(inter, player_pos)
                 if min_distance > dist > MIN_RENDER_DISTANCE:
-                    texture = obj.get_current_texture()
+                    texture = obj.get_cur_texture()
                     shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
                     units_per_pixel = ENTITY_SIZE / texture.get_width()
                     pixel_row = int(distance(shifted, inter) // units_per_pixel)
@@ -468,7 +656,7 @@ def render_image(screen: pygame.Surface, player: Player, walls: list, entities: 
     ang_between_rays = fov / rays_amount
     ang = look_ang + fov / 2
 
-    weapon = pygame.transform.scale(player.curr_weapon().get_current_texture(), (400, 400))
+    weapon = pygame.transform.scale(player.cur_weapon().get_cur_texture(), (400, 400))
 
     for i in range(rays_amount):
         layers = cast_ray(ang, look_ang, pos, walls, entities, projectiles)
