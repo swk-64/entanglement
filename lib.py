@@ -482,42 +482,74 @@ def process_movement(entities:list, player: Player, level_map: list, projectiles
     player.check_collision(level_map)
     player.move()
 
-def process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt: int, player: Player, projectiles, now: int) -> None:
+def process_input(events: list[pygame.event.Event], velocity: pygame.Vector2, dt: int, player: Player, projectiles, now: int) -> bool:
+    for event in events:
+        # keyboard
+        speed_mod = 1
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                return False
 
-    # keyboard
-    velocity = pygame.Vector2(0, 0)
-    if pressed_keys[pygame.K_w]:
-        velocity += pygame.Vector2(cos(player.look_ang), -sin(player.look_ang))
-    if pressed_keys[pygame.K_s]:
-        velocity += pygame.Vector2(-cos(player.look_ang), sin(player.look_ang))
-    if pressed_keys[pygame.K_a]:
-        velocity += pygame.Vector2(-sin(player.look_ang), -cos(player.look_ang))
-    if pressed_keys[pygame.K_d]:
-        velocity += pygame.Vector2(sin(player.look_ang), cos(player.look_ang))
+            if event.key == pygame.K_w:
+                velocity += pygame.Vector2(cos(player.look_ang), -sin(player.look_ang))
 
-    if velocity != pygame.Vector2(0, 0):
-        velocity = velocity.normalize() * dt * player.speed
+            if event.key == pygame.K_s:
+                velocity += pygame.Vector2(-cos(player.look_ang), sin(player.look_ang))
 
-    if pressed_keys[pygame.K_LSHIFT]:
-        velocity *= PLAYER_RUN_SPEED_MODIFIER
-    player.vel = velocity
+            if event.key == pygame.K_a:
+                velocity += pygame.Vector2(-sin(player.look_ang), -cos(player.look_ang))
 
-    # mouse buttons
-    cur_weapon = player.cur_weapon()
-    if pressed_mouse_buttons[0]:
-        if not cur_weapon.is_active:
-            cur_weapon.is_active = True
-            cur_weapon.start_time = now
-            cur_weapon.texture.curr_frame_number = 0
-            cur_weapon.texture.last_update = now
-        proj = player.cur_weapon().use(now)
-        if proj:
-            projectiles.append(proj)
-    elif cur_weapon.is_active:
-        player.cur_weapon().is_active = False
-    # mouse movement
-    player.look_ang -= (mouse_pos[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
-    pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
+            if event.key == pygame.K_d:
+                velocity += pygame.Vector2(sin(player.look_ang), cos(player.look_ang))
+
+            if event.key == pygame.K_LSHIFT:
+                speed_mod = PLAYER_RUN_SPEED_MODIFIER
+
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_ESCAPE:
+                    return False
+
+                if event.key == pygame.K_w:
+                    velocity -= pygame.Vector2(cos(player.look_ang), -sin(player.look_ang))
+
+                if event.key == pygame.K_s:
+                    velocity -= pygame.Vector2(-cos(player.look_ang), sin(player.look_ang))
+
+                if event.key == pygame.K_a:
+                    velocity -= pygame.Vector2(-sin(player.look_ang), -cos(player.look_ang))
+
+                if event.key == pygame.K_d:
+                    velocity -= pygame.Vector2(sin(player.look_ang), cos(player.look_ang))
+
+                if event.key == pygame.K_LSHIFT:
+                    speed_mod = 1
+
+            if velocity != pygame.Vector2(0, 0):
+                velocity = velocity.normalize() * dt * player.speed
+            velocity *= speed_mod
+
+            player.vel = velocity
+
+
+        # mouse buttons
+        cur_weapon = player.cur_weapon()
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == pygame.BUTTON_LEFT:
+                cur_weapon.is_active = True
+                cur_weapon.start_time = now
+                cur_weapon.texture.curr_frame_number = 0
+                cur_weapon.texture.last_update = now
+                proj = player.cur_weapon().use(now)
+                if proj:
+                    projectiles.append(proj)
+        if event.type == pygame.MOUSEBUTTONUP:
+            if event.button == pygame.BUTTON_LEFT:
+                player.cur_weapon().is_active = False
+        # mouse movement
+        if event.type == pygame.MOUSEMOTION:
+            player.look_ang -= (event.pos[0] - DISPLAY_RESOLUTION[0] / 2) / 10 * dt
+            pygame.mouse.set_pos(DISPLAY_RESOLUTION[0] / 2, DISPLAY_RESOLUTION[1] / 2)
+    return True
 
 def init_wall(level_data: list,
               wall_type: str,
