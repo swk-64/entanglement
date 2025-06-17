@@ -1,6 +1,6 @@
 import pygame
 from pygame import gfxdraw
-from math import sin, cos, pi, sqrt, ceil
+from math import sin, cos, pi, sqrt, ceil, asin
 from typing import Union
 
 # It is recommended to use 32x48 pixels texture size
@@ -33,13 +33,13 @@ DOOR_WIDTH = 2
 WALL_SYMS = '#'
 
 class AnimatedImage:
-    def __init__(self, frames: list[pygame.Surface], speed=100):
+    def __init__(self, frames: list[pygame.Surface], now: int, speed=100):
         self.frames = frames
         self.frames_number = len(frames)
         self.curr_frame_number = 0
         self.animation_speed = speed
-        self.last_update = pygame.time.get_ticks()
-    def check_time(self):
+        self.last_update = now
+    def check_time(self, now: int):
         now = pygame.time.get_ticks()
         if now - self.last_update > self.animation_speed:
             self.last_update = now
@@ -47,8 +47,8 @@ class AnimatedImage:
                 self.curr_frame_number = 0
             else:
                 self.curr_frame_number += 1
-    def get_cur_texture(self):
-        self.check_time()
+    def get_cur_texture(self, now: int):
+        self.check_time(now)
         return self.frames[self.curr_frame_number]
 
 
@@ -76,10 +76,10 @@ class EntityBasicClass:
             level[y][x + 1].check_collision(self)
             level[y + 1][x].check_collision(self)
 
-    def update_ai(self, player: "Player", dt: int):
+    def update_ai(self, player: "Player", projectiles: list, dt: int, now: int):
         pass
 
-    def deal_damage(self, damage: int):
+    def deal_damage(self, damage: int, now: int):
         self.health -= damage
 
     def cur_block(self):
@@ -104,77 +104,108 @@ class Player(EntityBasicClass):
         self.weapons = []
         self.curr_weapon_number = 0
 
+    def get_look_ang(self):
+        return self.look_ang
+
     def cur_weapon(self):
         return self.weapons[self.curr_weapon_number]
 
 
 class Enemy(EntityBasicClass):
-    def __init__(self, pos: pygame.Vector2, speed: int, frames: list[pygame.Surface], ai):
+    def __init__(self, pos: pygame.Vector2, speed: int, frames: list[pygame.Surface], ai, now):
         super().__init__(pos, speed)
         self.ai = ai
-        self.texture = AnimatedImage(frames)
+        self.texture = AnimatedImage(frames, now)
         self.damage_time = None
         self.damage_duration = 300
-    def update_ai(self, player: Player, dt: int):
-        self.ai(self, player, dt)
-    def deal_damage(self, damage: int):
+        self.weapon = None
+    def update_ai(self, player: Player, projectiles: list, dt: int, now: int):
+        self.ai(self, player, projectiles, dt, now)
+    def deal_damage(self, damage: int, now: int):
         self.health -= damage
         self.damage_time = pygame.time.get_ticks()
-    def get_cur_texture(self):
+    def get_cur_texture(self, now: int):
         now = pygame.time.get_ticks()
 
         if not (self.damage_time is None):
             if now - self.damage_time >= self.damage_duration:
                 self.damage_time = None
             else:
-                texture = self.texture.get_cur_texture().copy()
+                texture = self.texture.get_cur_texture(now).copy()
                 red_rect = pygame.Surface(texture.get_size()).convert_alpha()
                 red_rect.fill(pygame.Color(255, 0, 0, 100))
                 texture.blit(red_rect, (0, 0))
                 return texture
-        return self.texture.get_cur_texture()
+        return self.texture.get_cur_texture(now)
+    def get_look_ang(self, player: "Player"):
+        return asin((self.pos - player.pos).normalize().y)
+
+class EntityWeaponClass:
+    def __init__(self, user: Enemy, speed: int,  now: int, damage: int):
+        self.start_time = now
+        self.use_speed = speed
+        self.user = user
+        self.damage = damage
+    def use(self, now: int, player: "Player"):
+        if now - self.start_time >= self.use_speed:
+            self.start_time = now
+            direction = -(self.user.pos - player.pos).normalize()
+            proj = Projectile(self.user.pos, direction, now, self.damage)
+            proj.damaged_entities.append(self.user)
+            return proj
+        return None
 
 
 class Weapon:
-    def __init__(self, user: Player, speed: int, frames: list[pygame.Surface]):
-        self.texture = AnimatedImage(frames, int(speed // len(frames)))
-        self.start_time = pygame.time.get_ticks()
+    def __init__(self, user: Player, speed: int, frames: list[pygame.Surface], now: int, damage: int):
+        self.texture = AnimatedImage(frames, now, int(speed // len(frames)))
+        self.start_time = now
         self.use_speed = speed
         self.user = user
+        self.damage = damage
         self.is_active = False
-    def use(self):
+    def use(self, now: int):
         if self.is_active:
-            now = pygame.time.get_ticks()
             if now - self.start_time >= self.use_speed:
                 self.is_active = False
-                return Projectile(self.user.pos, self.user.look_ang, now)
+                ang = self.user.look_ang
+                direction = pygame.Vector2(cos(ang), -sin(ang))
+                proj = Projectile(self.user.pos, direction, now, self.damage)
+                proj.damaged_entities.append(self.user)
+                return proj
         return None
 
-    def get_cur_texture(self):
+    def get_cur_texture(self, now: int):
         if self.is_active:
-            return self.texture.get_cur_texture()
+            return self.texture.get_cur_texture(now)
         else:
             return self.texture.frames[0]
 
 class LaserGun(Weapon):
-    def __init__(self, user: Player):
+    def __init__(self, user: Player, now: int):
         frames = []
         for i in range(3):
             image = pygame.image.load("textures/lasergun/" + str(i) + ".png")
             frames.append(image.convert_alpha())
-        super().__init__(user, 800, frames)
+        super().__init__(user, 800, frames, now, 20)
+
+class PelmenLaserGun(EntityWeaponClass):
+    def __init__(self, user: Enemy, now: int):
+        super().__init__(user, 800, now, 20)
 
 
 class Projectile:
-    def __init__(self, pos: pygame.Vector2, ang: float, time: int):
-        self.pos = pygame.Vector2(pos.x + cos(ang), pos.y - sin(ang))
-        self.time = time
-        self.decay_time = 1000
+    def __init__(self, pos: pygame.Vector2, direction: pygame.Vector2, now: int, damage: int, ):
+        self.pos = pygame.Vector2(pos.x + direction.x, pos.y + direction.y)
+        self.time = now
+        self.decay_time = 2000
         self.speed = 200
         self.color = "red"
         self.length = 20
         self.width = 2
-        self.direction = pygame.Vector2(cos(ang), -sin(ang))
+        self.damage = damage
+        # unit vector with right direction
+        self.direction = direction
         self.damaged_entities = []
     def update(self, dt: int):
         now = pygame.time.get_ticks()
@@ -313,10 +344,12 @@ class SpawnBlockEnemy:
         self.entity_ai = ai
     def check_collision(self, obj):
         pass
-    def spawn_entity(self):
-        return init_enemy(self.pos, self.entity_frames, self.entity_speed, self.entity_ai)
+    def spawn_entity(self, now: int):
+        return init_enemy(self.pos, self.entity_frames, self.entity_speed, self.entity_ai, now)
 
 def load_level(screen:pygame.Surface, path: str):
+    now = 0
+
     stone_wall_1_texture = pygame.image.load("./textures/stone_wall_1.jpg").convert()
     pelmen_king_frames = []
     for i in range(12):
@@ -347,7 +380,7 @@ def load_level(screen:pygame.Surface, path: str):
                 case "@":
                     block = SpawnBlockPlayer(pos)
                     player = block.spawn_entity()
-                    player.weapons.append(LaserGun(player))
+                    player.weapons.append(LaserGun(player, now))
 
                     level_objs_map[y].append(block)
 
@@ -362,7 +395,8 @@ def load_level(screen:pygame.Surface, path: str):
 
                 case "!":
                     block = SpawnBlockEnemy(pos, pelmen_king_frames, PLAYER_SPEED * 2, chasing)
-                    entity = block.spawn_entity()
+                    entity = block.spawn_entity(now)
+                    entity.weapon = PelmenLaserGun(entity, now)
                     entities.append(entity)
                     level_objs_map[y].append(block)
 
@@ -388,25 +422,48 @@ def draw_minimap(screen:pygame.Surface, minimap:pygame.Surface, player:Player):
     gfxdraw.pie(screen, int(player.pos.x * MINIMAP_SCALE), int(player.pos.y * MINIMAP_SCALE), int(MINIMAP_BLOCK_SIZE * 1.5), start_ang, end_ang, pygame.Color("green"))
     pygame.draw.circle(screen, "yellow", player.pos * MINIMAP_SCALE, MINIMAP_BLOCK_SIZE / 2)
 
-def chasing(entity: EntityBasicClass, player: Player, dt: int):
-    if 250 > distance(player.pos, entity.pos) > 40:
+def chasing(entity: Enemy, player: Player, projectiles: list, dt: int, now: int):
+    chase_distance = 150
+    shoot_distance = 350
+    cur_distance = distance(player.pos, entity.pos)
+
+    if shoot_distance >= cur_distance > chase_distance:
+        proj = entity.weapon.use(now, player)
+        if proj:
+            projectiles.append(proj)
+
+    elif chase_distance >= cur_distance > 40:
         vel = (player.pos - entity.pos).normalize() * entity.speed * dt
         entity.vel = vel
 
-def init_enemy(pos: pygame.Vector2, frames: list[pygame.Surface], speed: int, ai):
-    entity = Enemy(pos, speed, frames, ai)
+    elif cur_distance < 40:
+        vel = -(player.pos - entity.pos).normalize() * entity.speed * dt
+        entity.vel = vel
+
+# def standing_shooting(entity: EntityBasicClass, player: Player, projectiles: list, dt: int):
+#     if 250 > distance(player.pos, entity.pos) > 40:
+
+
+def init_enemy(pos: pygame.Vector2, frames: list[pygame.Surface], speed: int, ai, now: int):
+    entity = Enemy(pos, speed, frames, ai, now)
     return entity
 
-def process_projectiles(projs: list[Projectile], entities: list[EntityBasicClass], dt: int):
+def check_player_health(player: Player):
+    if player.health <= 0:
+        return False
+    else:
+        return True
+def process_projectiles(projs: list[Projectile], entities: list[EntityBasicClass], player: Player, dt: int, now: int):
     projectiles = []
     for proj in projs:
         projectile = proj.update(dt)
         if projectile:
-            for entity in entities:
+            for entity in [*entities, player]:
                 if (entity.pos.x - proj.pos.x) ** 2 + (entity.pos.y - proj.pos.y) ** 2 < ENTITY_HALF_SIZE**2:
                     if entity not in proj.damaged_entities:
-                        entity.deal_damage(10)
+                        entity.deal_damage(proj.damage, now)
                         proj.damaged_entities.append(entity)
+
             projectiles.append(projectile)
     return projectiles
 
@@ -417,15 +474,15 @@ def update_entities(entities: list[EntityBasicClass]):
             valid_entities.append(entity)
     return valid_entities
 
-def process_movement(entities:list, player: Player, level_map: list, dt: int) -> None:
+def process_movement(entities:list, player: Player, level_map: list, projectiles: list, dt: int, now: int) -> None:
     for obj in entities:
-        obj.update_ai(player, dt)
+        obj.update_ai(player, projectiles, dt, now)
         obj.check_collision(level_map)
         obj.move()
     player.check_collision(level_map)
     player.move()
 
-def process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt: int, player: Player, projectiles) -> None:
+def process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt: int, player: Player, projectiles, now: int) -> None:
 
     # keyboard
     velocity = pygame.Vector2(0, 0)
@@ -450,11 +507,10 @@ def process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt: int, playe
     if pressed_mouse_buttons[0]:
         if not cur_weapon.is_active:
             cur_weapon.is_active = True
-            now = pygame.time.get_ticks()
             cur_weapon.start_time = now
             cur_weapon.texture.curr_frame_number = 0
             cur_weapon.texture.last_update = now
-        proj = player.cur_weapon().use()
+        proj = player.cur_weapon().use(now)
         if proj:
             projectiles.append(proj)
     elif cur_weapon.is_active:
@@ -515,7 +571,7 @@ def is_visible(look_ang: float, pos: pygame.Vector2, point: pygame.Vector2):
     return False
 
 
-def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: list, entities: list, projectiles: list):
+def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: list, entities: list, projectiles: list, now: int):
     min_distance = 1000.0
     layers = [(min_distance, pygame.Surface((1, 1)), 1000)]
     if cos(ang) == 0:
@@ -595,7 +651,7 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
             if is_visible(look_ang, player_pos, inter):
                 dist = distance(inter, player_pos)
                 if min_distance > dist > MIN_RENDER_DISTANCE:
-                    texture = obj.get_cur_texture()
+                    texture = obj.get_cur_texture(now)
                     shifted = pygame.Vector2(cos(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.x, -sin(look_ang + pi / 2) * ENTITY_HALF_SIZE + obj.pos.y)
                     units_per_pixel = ENTITY_SIZE / texture.get_width()
                     pixel_row = int(distance(shifted, inter) // units_per_pixel)
@@ -647,7 +703,7 @@ def cast_ray(ang: float, look_ang: float, player_pos: pygame.Vector2, walls: lis
     return layers
 
 def render_image(screen: pygame.Surface, player: Player, walls: list, entities: list, projectiles: list,
-                 rays_amount: int, mode=0):
+                 rays_amount: int, now: int, mode=0):
 
     pos = player.pos
     look_ang = player.look_ang
@@ -656,10 +712,10 @@ def render_image(screen: pygame.Surface, player: Player, walls: list, entities: 
     ang_between_rays = fov / rays_amount
     ang = look_ang + fov / 2
 
-    weapon = pygame.transform.scale(player.cur_weapon().get_cur_texture(), (400, 400))
+    weapon = pygame.transform.scale(player.cur_weapon().get_cur_texture(now), (400, 400))
 
     for i in range(rays_amount):
-        layers = cast_ray(ang, look_ang, pos, walls, entities, projectiles)
+        layers = cast_ray(ang, look_ang, pos, walls, entities, projectiles, now)
         width = DISPLAY_RESOLUTION[0] / rays_amount
 
         if mode == 0:

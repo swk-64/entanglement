@@ -1,6 +1,6 @@
 import pygame
 from lib import (DISPLAY_RESOLUTION, process_projectiles, render_image, process_input, process_movement, RAYS_AMOUNT,
-                 load_level, draw_minimap, update_entities)
+                 load_level, draw_minimap, update_entities, check_player_health)
 
 
 pygame.init()
@@ -41,8 +41,8 @@ level_data = [i.rstrip() for i in file.readlines()]
 player, level_objs_map, walls, entities, minimap = load_level(screen, "levels/level_3.txt")
 projectiles = []
 
-
-while running:
+in_level = True
+while in_level:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
@@ -52,17 +52,20 @@ while running:
     pressed_mouse_buttons = pygame.mouse.get_pressed()
     mouse_pos = pygame.mouse.get_pos()
 
-    process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt, player, projectiles)
+    now = pygame.time.get_ticks()
 
-    process_movement(entities, player, level_objs_map, dt)
+    process_input(pressed_keys, pressed_mouse_buttons, mouse_pos, dt, player, projectiles, now)
+
+    process_movement(entities, player, level_objs_map, projectiles, dt, now)
 
 
-    projectiles = process_projectiles(projectiles, entities, dt)
+    projectiles = process_projectiles(projectiles, entities, player, dt, now)
     entities = update_entities(entities)
 
+    in_level = check_player_health(player)
 
     # render image
-    render_image(screen, player, walls, entities, projectiles, RAYS_AMOUNT)
+    render_image(screen, player, walls, entities, projectiles, RAYS_AMOUNT, now)
     draw_minimap(screen, minimap, player)
 
     # show on display
