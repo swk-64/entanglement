@@ -448,11 +448,11 @@ def init_enemy(pos: pygame.Vector2, frames: list[pygame.Surface], speed: int, ai
     entity = Enemy(pos, speed, frames, ai, now)
     return entity
 
-def check_player_health(player: Player):
+def is_player_dead(player: Player):
     if player.health <= 0:
-        return False
-    else:
         return True
+    else:
+        return False
 def process_projectiles(projs: list[Projectile], entities: list[EntityBasicClass], player: Player, dt: int, now: int):
     projectiles = []
     for proj in projs:

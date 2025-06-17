@@ -1,6 +1,6 @@
 import pygame
 from lib import (DISPLAY_RESOLUTION, process_projectiles, render_image, process_input, process_movement, RAYS_AMOUNT,
-                 load_level, draw_minimap, update_entities, check_player_health)
+                 load_level, draw_minimap, update_entities, is_player_dead)
 
 
 pygame.init()
@@ -45,7 +45,7 @@ in_level = True
 while in_level:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
+            in_level = False
 
     # get input
     pressed_keys = pygame.key.get_pressed()
@@ -62,7 +62,8 @@ while in_level:
     projectiles = process_projectiles(projectiles, entities, player, dt, now)
     entities = update_entities(entities)
 
-    in_level = check_player_health(player)
+    if is_player_dead(player):
+        in_level = False
 
     # render image
     render_image(screen, player, walls, entities, projectiles, RAYS_AMOUNT, now)
